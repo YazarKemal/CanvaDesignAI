@@ -24,6 +24,7 @@ VALID_CARD = {
     "negative_prompt": "embedded text, watermark, clutter",
     "aspect_ratio": "1:1 (1080x1080)",
     "target_tool": "Canva Magic Media",
+    "text_zone": "top",
     "layer_typography_architecture": {
         "headline": "Grand Opening",
         "subtext": "Freshly roasted, every morning.",
@@ -96,3 +97,31 @@ def test_generate_prompt_raises_on_forbidden_chat_phrase():
     client = _FakeOpenAIClient(json.dumps(chatty_card))
     with pytest.raises(PromptValidationError):
         generate_prompt(BRIEF, concept="Cafe", client=client)
+
+
+def test_default_client_uses_deepseek_via_openai_sdk_even_with_anthropic_key_set(monkeypatch):
+    # Single-engine architecture: an ANTHROPIC_API_KEY in the environment
+    # must never route the Generator to Claude -- DeepSeek is the only engine.
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-should-be-ignored")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-deepseek-test")
+    import src.generator as generator_module
+
+    client = generator_module._default_client()
+    assert "deepseek" in str(client.base_url).lower()
+
+
+def test_default_client_falls_back_to_http_client_when_openai_sdk_missing(monkeypatch):
+    import src.generator as generator_module
+    from src.http_client import DeepSeekClient
+
+    monkeypatch.setattr(generator_module, "OpenAI", None)
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-deepseek-test")
+
+    client = generator_module._default_client()
+    assert isinstance(client, DeepSeekClient)
+
+
+def test_generator_module_has_no_anthropic_import():
+    import src.generator as generator_module
+
+    assert not hasattr(generator_module, "anthropic")

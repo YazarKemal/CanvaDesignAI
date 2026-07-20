@@ -68,6 +68,7 @@ export default function Home() {
             approved: payload.approved,
             score: payload.score,
             pasteText: payload.paste_text,
+            contrastRatio: payload.contrast_ratio,
           },
         ]);
       }

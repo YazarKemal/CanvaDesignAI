@@ -8,7 +8,11 @@ in Canva as fast as possible.
 
 It's for people who already have Canva Pro or ChatGPT Pro but can't reliably
 get consistent, designer-grade results out of them. **Cards only** — this
-project never generates images or logs into Canva on your behalf.
+project never generates images or logs into Canva on your behalf. The
+engine reasons like an Art Director, not just a prompt writer: real WCAG
+color contrast, a real typographic hierarchy, and a single canonical
+placement decision (`text_zone`) that the image and the text layer are both
+held to — all enforced at the code level, not just described in a prompt.
 
 ## Single-engine architecture (DeepSeek)
 
@@ -17,42 +21,55 @@ project never generates images or logs into Canva on your behalf.
         │  "Kafe açılışı için Instagram gönderisi"
         ▼
 [ DeepSeek — Architect / Canva expert ]   src/architect.py
-        │  detects category + dimensions, locks art direction & negative space
+        │  detects category + dimensions, picks ONE text_zone, locks
+        │  art direction & negative space around it
         ▼
 [ DeepSeek — Generator / Prompt Engineer ] src/generator.py
-        │  writes the Canva card's 3 mandatory components
+        │  writes the Canva card's 3 mandatory components, honoring
+        │  the brief's text_zone in both the image prompt and the
+        │  typography layer
         ▼
 [ DeepSeek — Reviewer ]                    src/reviewer.py
-        │  scores it; if < 8.5 OR any chat language is found, retries the
+        │  scores it; if < 8.5, OR any chat language / contrast /
+        │  hierarchy / zone-consistency check fails, retries the
         │  Generator with feedback (up to max_attempts)
         ▼
-[ Chat UI — Canva Card ]  (one-click copy + parameters, terminal log)
+[ Chat UI — Canva Card ]  (wireframe + contrast readout + one-click copy)
 ```
 
 Every stage runs on DeepSeek (`DEEPSEEK_API_KEY` only — no other LLM key is
-required by the pipeline).
+required by the pipeline; `src/http_client.py` provides a pure-httpx
+fallback for platforms — e.g. Android/Termux — where the `openai` SDK's
+`jiter` C-extension dependency won't compile).
 
 - **`src/canva_rules.py`** — the Canva knowledge base: canvas dimensions,
   Magic Media styles, and the element/library keywords Canva's algorithms
   understand best. All three stages share it as one source of truth.
 - **`design_rules.json`** — the Canva Automation Constitution: the
   `output_contract` (mandatory 3 components, forbidden chat phrases),
-  prompt-engineering rules (medium/composition/lighting/color/typography),
-  and the review rubric (8.5 pass threshold).
-- **`src/schema.py`** — validates the card's shape AND runs a **code-level**
-  ban on conversational filler ("I can generate...", "would you like...",
-  etc.) — enforced independent of whether the LLM follows its system prompt.
+  Art Director rules (medium/composition/lighting/color/typography, the
+  numeric `min_contrast_ratio`, the `text_zone` placement rule), and the
+  review rubric (8.5 pass threshold).
+- **`src/color_science.py`** — real WCAG contrast-ratio and hue-distance
+  math (pure Python, no dependency) backing the color theory rules.
+- **`src/schema.py`** — validates the card's shape AND runs several
+  **code-level** Art Director checks, independent of whether the LLM
+  follows its system prompt: a ban on conversational filler ("I can
+  generate...", "would you like...", etc.), a WCAG contrast-ratio floor
+  (≥ 4.5:1 within `color_palette`), headline/subtext length limits, and
+  `text_zone` consistency between the image prompt and the typography layer.
 - **`src/orchestrator.py`** — runs Architect → Generator → Reviewer, retrying
-  the Generator on either a low Reviewer score or a schema/forbidden-phrase
-  validation failure, up to `max_attempts`. Raises `PipelineError` if no
-  attempt ever produces a valid card.
+  the Generator on either a low Reviewer score or any of the schema/Art
+  Director validation failures, up to `max_attempts`. Raises `PipelineError`
+  if no attempt ever produces a valid card.
 - **`api.py`** — FastAPI `POST /api/chat` that runs the pipeline.
 - **`web/`** — the CaVDesign Next.js chat UI (terminal aesthetic).
 
 ## Canva card (output shape)
 
 Exactly three mandatory components — `magic_media_prompt`,
-`layer_typography_architecture`, `direct_action_tip` — plus routing fields:
+`layer_typography_architecture`, `direct_action_tip` — anchored to one
+canonical `text_zone`, plus routing fields:
 
 ```json
 {
@@ -61,6 +78,7 @@ Exactly three mandatory components — `magic_media_prompt`,
   "negative_prompt": "embedded text, watermark, logo, cluttered composition, ...",
   "aspect_ratio": "1:1 (1080x1080)",
   "target_tool": "Canva Magic Media",
+  "text_zone": "top",
   "layer_typography_architecture": {
     "headline": "Grand Opening",
     "subtext": "Freshly roasted, every morning.",
@@ -79,7 +97,13 @@ Exactly three mandatory components — `magic_media_prompt`,
 }
 ```
 
-Field names map 1:1 onto the `ChatPromptCard` UI component. See
+`text_zone` (`top`/`bottom`/`left`/`right`/`center`) is decided once by the
+Architect and must be referenced by both `magic_media_prompt`'s negative
+space and `background_layers` — `src/schema.py` rejects a card where they
+disagree. `color_palette` must contain a pair with a WCAG contrast ratio
+≥ 4.5:1 (simulating headline text over its background). Field names map
+1:1 onto the `ChatPromptCard` UI component, which also renders a monochrome
+ASCII wireframe of `text_zone` and a plain-text contrast readout. See
 [`examples/grand_opening_cafe.json`](examples/grand_opening_cafe.json).
 
 ## Pasting into a Claude/ChatGPT chat with Canva connected
@@ -126,7 +150,7 @@ cd web && cp .env.example .env.local && npm install && npm run dev
 
 ```bash
 pip install -r requirements.txt pytest
-pytest                        # 45 tests, fully offline (mocked DeepSeek/HTTP)
+pytest                        # 69 tests, fully offline (mocked DeepSeek/HTTP)
 
 cd web && npm run typecheck && npm run build
 ```

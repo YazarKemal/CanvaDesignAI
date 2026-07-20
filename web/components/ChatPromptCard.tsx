@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import type { LogEntry } from "@/lib/types";
+import type { LogEntry, PromptCard, TextZone } from "@/lib/types";
 
 function CopyButton({
   text,
   label = "copy",
-  className = "",
+  className = "absolute right-2 top-2",
 }: {
   text: string;
   label?: string;
@@ -35,26 +35,120 @@ function CopyButton({
   );
 }
 
-/** Build a Claude/ChatGPT-ready instruction block from the prompt card. */
-function buildClaudeMessage(card: import("@/lib/types").PromptCard): string {
-  const lines = [
-    "Generate an image in Canva with this exact prompt. Copy and paste the",
-    "prompt into Canva Magic Media, then return the generated image here.",
-    "",
-    `Prompt: ${card.prompt_text}`,
-    "",
-    `Negative Prompt: ${card.negative_prompt}`,
-    `Aspect Ratio: ${card.aspect_ratio}`,
-    `Target Tool: ${card.target_tool}`,
-  ];
-  if (card.art_direction?.magic_media_style) {
-    lines.push(`Style: ${card.art_direction.magic_media_style}`);
+const WIREFRAME_WIDTH = 24;
+const WIREFRAME_HEIGHT = 5;
+
+/** Monochrome ASCII wireframe of the canvas with the reserved text_zone
+ * marked — visualizes composition/hierarchy without touching color. */
+function buildWireframe(zone: TextZone): string[] {
+  const top = "┌" + "─".repeat(WIREFRAME_WIDTH) + "┐";
+  const bottom = "└" + "─".repeat(WIREFRAME_WIDTH) + "┘";
+  const blank = "│" + " ".repeat(WIREFRAME_WIDTH) + "│";
+
+  const centerLabel = "[ headline / subtext ]";
+  const pad = WIREFRAME_WIDTH - centerLabel.length;
+  const left = Math.floor(pad / 2);
+  const right = pad - left;
+  const fullLabelRow = "│" + " ".repeat(Math.max(left, 0)) + centerLabel + " ".repeat(Math.max(right, 0)) + "│";
+
+  const halfLabel = "[ headline ]";
+  const halfWidth = Math.floor(WIREFRAME_WIDTH / 2);
+  const leftRow =
+    "│" + halfLabel.padEnd(halfWidth, " ") + " ".repeat(WIREFRAME_WIDTH - halfWidth) + "│";
+  const rightRow =
+    "│" + " ".repeat(WIREFRAME_WIDTH - halfWidth) + halfLabel.padStart(halfWidth, " ") + "│";
+
+  const rows: string[] = [top];
+  const mid = Math.floor(WIREFRAME_HEIGHT / 2);
+
+  for (let i = 0; i < WIREFRAME_HEIGHT; i++) {
+    if (zone === "top" && i === 0) rows.push(fullLabelRow);
+    else if (zone === "bottom" && i === WIREFRAME_HEIGHT - 1) rows.push(fullLabelRow);
+    else if (zone === "center" && i === mid) rows.push(fullLabelRow);
+    else if (zone === "left" && i === mid) rows.push(leftRow);
+    else if (zone === "right" && i === mid) rows.push(rightRow);
+    else rows.push(blank);
   }
-  if (card.art_direction?.color_palette?.length) {
-    lines.push(`Color Palette: ${card.art_direction.color_palette.join(", ")}`);
-  }
-  lines.push("", `Tip: ${card.canva_tip}`);
-  return lines.join("\n");
+
+  rows.push(bottom);
+  return rows;
+}
+
+function ContrastLine({ ratio }: { ratio?: number }) {
+  if (ratio === undefined) return null;
+  const passes = ratio >= 4.5;
+  return (
+    <p className="mt-1 text-xs text-zinc-500">
+      contrast: {ratio.toFixed(1)}:1 {passes ? "(AA ok)" : "(LOW - below 4.5:1)"}
+    </p>
+  );
+}
+
+function CardBody({ card, pasteText, contrastRatio }: { card: PromptCard; pasteText?: string; contrastRatio?: number }) {
+  const layer = card.layer_typography_architecture;
+
+  return (
+    <>
+      {/* Parameters — plain grayscale text, no colored badges */}
+      <p className="mt-1 text-xs text-zinc-500">
+        # {card.aspect_ratio} · {card.target_tool} · zone: {card.text_zone}
+        {layer?.magic_media_style ? ` · ${layer.magic_media_style}` : ""}
+      </p>
+
+      {/* Composition wireframe — monochrome, shows where text_zone sits */}
+      <pre className="mt-2 whitespace-pre border border-zinc-800 bg-zinc-950 p-2 text-xs leading-tight text-zinc-500">
+        {buildWireframe(card.text_zone).join("\n")}
+      </pre>
+
+      {/* 1. Magic Media prompt — the copy-paste payload */}
+      <p className="mt-3 text-xs text-zinc-600">01 // magic media prompt</p>
+      <div className="relative mt-1 border border-zinc-800 bg-zinc-950 p-3 pr-16">
+        <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-300">
+          {card.magic_media_prompt}
+        </p>
+        <CopyButton text={card.magic_media_prompt} />
+      </div>
+      <p className="mt-1 text-xs text-zinc-600">neg: {card.negative_prompt}</p>
+
+      {/* 2. Layer & typography architecture */}
+      <p className="mt-3 text-xs text-zinc-600">02 // layer &amp; typography architecture</p>
+      <div className="mt-1 space-y-1 border border-zinc-800 bg-zinc-950 p-3 text-xs text-zinc-400">
+        <p>
+          headline: <span className="text-zinc-200">{layer.headline}</span>
+        </p>
+        <p>
+          subtext: <span className="text-zinc-200">{layer.subtext}</span>
+        </p>
+        <p>palette: {layer.color_palette.join(" · ")}</p>
+        <ContrastLine ratio={contrastRatio} />
+        <p>
+          fonts: {layer.fonts.headline_font} / {layer.fonts.body_font}
+        </p>
+        <p>layers: {layer.background_layers}</p>
+      </div>
+
+      {/* 3. Direct action tip — step by step */}
+      <p className="mt-3 text-xs text-zinc-600">03 // direct action tip</p>
+      <ol className="mt-1 space-y-1 border border-zinc-800 bg-zinc-950 p-3 text-xs text-zinc-400">
+        {card.direct_action_tip.map((step, i) => (
+          <li key={i}>
+            {i + 1}. {step}
+          </li>
+        ))}
+      </ol>
+
+      {/* Paste the whole card + directive into a Canva-connected AI chat */}
+      {pasteText ? (
+        <div className="mt-3">
+          <CopyButton
+            text={pasteText}
+            label="copy for Claude / ChatGPT chat"
+            className="relative w-full py-1.5 text-center"
+          />
+        </div>
+      ) : null}
+    </>
+  );
 }
 
 export function ChatPromptCard({ entry }: { entry: LogEntry }) {
@@ -82,38 +176,7 @@ export function ChatPromptCard({ entry }: { entry: LogEntry }) {
         <span className="shrink-0 text-xs text-zinc-600">[{status}]</span>
       </div>
 
-      {/* Parameters — plain grayscale text, no colored badges */}
-      <p className="mt-1 text-xs text-zinc-500">
-        # {card.aspect_ratio} · {card.target_tool}
-        {card.art_direction?.magic_media_style
-          ? ` · ${card.art_direction.magic_media_style}`
-          : ""}
-      </p>
-
-      {/* The prompt — the copy-paste payload */}
-      <div className="relative mt-2 border border-zinc-800 bg-zinc-950 p-3 pr-16">
-        <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-300">
-          {card.prompt_text}
-        </p>
-        <div className="absolute right-2 top-2 flex gap-1.5">
-          <CopyButton text={card.prompt_text} />
-          <CopyButton
-            text={buildClaudeMessage(card)}
-            label="copy for LLM"
-          />
-        </div>
-      </div>
-
-      {/* Negative prompt + Canva tip */}
-      <p className="mt-2 text-xs text-zinc-600">
-        # neg: {card.negative_prompt}
-      </p>
-      {card.art_direction?.color_palette?.length ? (
-        <p className="mt-1 text-xs text-zinc-600">
-          # palette: {card.art_direction.color_palette.join(", ")}
-        </p>
-      ) : null}
-      <p className="mt-1 text-xs text-zinc-500">// canva tip: {card.canva_tip}</p>
+      <CardBody card={card} pasteText={entry.pasteText} contrastRatio={entry.contrastRatio} />
     </div>
   );
 }

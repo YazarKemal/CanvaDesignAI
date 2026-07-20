@@ -30,6 +30,7 @@ BRIEF_SCHEMA_HINT = {
     "aspect_ratio": "1:1 (1080x1080)",
     "target_tool": "Canva Magic Media",
     "magic_media_style": "Minimalist",
+    "text_zone": "top",
     "art_direction": {
         "color_palette": ["#8B5E34", "#F5EFE6", "#D4A373"],
         "lighting": "soft natural daylight",
@@ -60,10 +61,15 @@ def _system_prompt() -> str:
         "2. aspect_ratio — the matching canvas size (e.g. '1:1 (1080x1080)').\n"
         "3. target_tool — one of the knowledge-base target_tools.\n"
         "4. magic_media_style — one of the knowledge-base magic_media_styles.\n"
-        "5. art_direction — {color_palette: 3-5 real HEX codes, lighting, mood}.\n"
-        "6. canva_keywords — 2-4 items drawn from canva_element_keywords.\n"
-        "7. negative_constraints — MUST enforce deliberate negative space for "
-        "the typography layer and exclude embedded text.\n\n"
+        "5. text_zone — exactly one of 'top', 'bottom', 'left', 'right', 'center': "
+        "where the headline/subtext will live. Pick this ONCE here — it is the "
+        "single source of truth the Generator must honor in both the image "
+        "prompt and the typography layer, so they never disagree about placement.\n"
+        "6. art_direction — {color_palette: 3-5 real HEX codes including at least "
+        "one near-black or near-white anchor so text stays legible, lighting, mood}.\n"
+        "7. canva_keywords — 2-4 items drawn from canva_element_keywords.\n"
+        "8. negative_constraints — MUST enforce deliberate negative space at "
+        "text_zone's location and exclude embedded text.\n\n"
         "Example shape (values illustrative only):\n"
         f"{json.dumps(BRIEF_SCHEMA_HINT, ensure_ascii=False, indent=2)}\n\n"
         "Respond with raw JSON only."
