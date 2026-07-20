@@ -31,7 +31,11 @@ class DeepSeekChatCompletion:
         temperature: float = 0.2,
         max_tokens: int = 2048,
     ) -> DeepSeekResponse:
-        url = f"{self.base_url}/v1/chat/completions"
+        # DeepSeek's real endpoint has no /v1 prefix (unlike OpenAI's own
+        # API) -- this must match exactly what the `openai` SDK path hits
+        # when given the same base_url, so both code paths behave
+        # identically regardless of whether the SDK is installed.
+        url = f"{self.base_url}/chat/completions"
         resp = httpx.post(
             url,
             json={
