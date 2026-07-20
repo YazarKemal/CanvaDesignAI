@@ -1,7 +1,9 @@
-"""Reviewer agent: scores a Generator prompt against the Art Director Constitution.
+"""Reviewer agent (Stage 3): DeepSeek scores a Generator card against the
+Canva Automation Constitution.
 
-Uses DeepSeek (an OpenAI-compatible API) because it is fast and cheap enough
-to run on every Generator attempt without materially affecting cost/latency.
+Single-engine architecture: DeepSeek runs Architect, Generator and Reviewer.
+It is fast and cheap enough to run on every Generator attempt without
+materially affecting cost/latency.
 """
 
 from __future__ import annotations
@@ -14,6 +16,7 @@ from typing import Any
 from openai import OpenAI
 
 from src.constitution import as_prompt_block, load_constitution
+from src.llm_json import extract_json
 
 DEFAULT_MODEL = "deepseek-chat"
 DEFAULT_BASE_URL = "https://api.deepseek.com"
@@ -42,40 +45,35 @@ def _system_prompt(pass_threshold: float, criteria: list[dict[str, Any]]) -> str
         f"- {c['id']} (weight {c['weight']}): {c['question']}" for c in criteria
     )
     return (
-        "You are the Reviewer agent inside CanvaDesignAI — a strict but fair "
-        "art director reviewing image-generation prompts. You are given the "
-        "Art Director Constitution and a visual-prompt draft (JSON). Score the "
-        "prompt against this rubric, on a 0-10 scale per criterion:\n"
+        "You are the Reviewer agent inside CaVDesign — a strict but fair Canva "
+        "automation QA reviewer. You are given the Canva Automation "
+        "Constitution and a Canva card (JSON). Score the card against this "
+        "rubric, on a 0-10 scale per criterion:\n"
         f"{criteria_desc}\n\n"
         f"{as_prompt_block(load_constitution())}\n\n"
-        "Compute the weighted average as the overall `score` (0-10). A prompt "
-        f"passes if score >= {pass_threshold}.\n\n"
+        "Compute the weighted average as the overall `score` (0-10). A card "
+        f"passes if score >= {pass_threshold}. If the card contains ANY "
+        "conversational/chat language (greetings, questions back to the user, "
+        "'here is', 'would you like', etc.), score format_discipline as 0 no "
+        "matter how good the rest of the card is.\n\n"
         "Respond with raw JSON only, no markdown fences, matching exactly:\n"
         "{\n"
         '  "score": <weighted average, float>,\n'
         '  "criteria_scores": {"<criterion_id>": <0-10>, ...},\n'
         '  "feedback": "<if score < threshold, concrete actionable fixes; '
         'empty string if it passes>"\n'
-        "}"
+        "}\n\n"
+        "Your own reply must ALSO be pure JSON — no greeting, no commentary."
     )
 
 
-def _extract_json(text: str) -> dict[str, Any]:
-    text = text.strip()
-    if text.startswith("```"):
-        text = text.split("```", 2)[1]
-        if text.startswith("json"):
-            text = text[len("json"):]
-    return json.loads(text.strip())
-
-
 def review_prompt(
-    draft: dict[str, Any],
+    card: dict[str, Any],
     *,
     model: str = DEFAULT_MODEL,
     client: OpenAI | None = None,
 ) -> ReviewResult:
-    """Score a visual-prompt draft. Returns a ReviewResult with pass/fail + feedback."""
+    """Score a Canva card. Returns a ReviewResult with pass/fail + feedback."""
     constitution = load_constitution()
     rubric = constitution["review_rubric"]
     pass_threshold = float(rubric["pass_threshold"])
@@ -89,14 +87,14 @@ def review_prompt(
         model=model,
         messages=[
             {"role": "system", "content": _system_prompt(pass_threshold, rubric["criteria"])},
-            {"role": "user", "content": f"Visual prompt to review:\n{json.dumps(draft, ensure_ascii=False, indent=2)}"},
+            {"role": "user", "content": f"Canva card to review:\n{json.dumps(card, ensure_ascii=False, indent=2)}"},
         ],
         temperature=0,
     )
     raw_text = response.choices[0].message.content or ""
 
     try:
-        data = _extract_json(raw_text)
+        data = extract_json(raw_text)
     except json.JSONDecodeError as exc:
         raise ValueError(f"Reviewer did not return valid JSON: {exc}\nRaw: {raw_text}") from exc
 

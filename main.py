@@ -1,13 +1,14 @@
-"""CLI entrypoint for CanvaDesignAI — the Canva Prompt Workbench.
+"""CLI entrypoint for CaVDesign — the Canva Prompt Workbench.
 
-Takes a plain concept and runs the three-stage pipeline (DeepSeek Architect
--> Claude Generator -> DeepSeek Reviewer) to produce a copy-paste-ready
-Canva prompt card.
+Single-engine architecture: takes a plain concept and runs the three-stage
+DeepSeek pipeline (Architect -> Generator -> Reviewer) to produce a Canva
+automation card (magic_media_prompt, layer_typography_architecture,
+direct_action_tip). Never chats, never asks a question — card only.
 
 Usage:
     python main.py "Kafe acilisi icin Instagram gonderisi"
     python main.py "Grand Opening Cafe" --max-attempts 5
-    python main.py "Grand Opening Cafe" --raw   # print just the prompt string
+    python main.py "Grand Opening Cafe" --raw   # print just the Magic Media prompt string
 """
 
 from __future__ import annotations
@@ -16,26 +17,30 @@ import argparse
 import json
 import sys
 
-from src.orchestrator import DEFAULT_MAX_ATTEMPTS, run_pipeline
+from src.orchestrator import DEFAULT_MAX_ATTEMPTS, PipelineError, run_pipeline
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Engineer a copy-paste-ready Canva prompt card via the dual-agent workbench."
+        description="Generate a Canva automation card via the single-engine DeepSeek workbench."
     )
     parser.add_argument("concept", help='Plain concept, e.g. "Grand Opening Cafe"')
     parser.add_argument("--max-attempts", type=int, default=DEFAULT_MAX_ATTEMPTS)
     parser.add_argument(
         "--raw",
         action="store_true",
-        help="Print only the prompt_text string (ready to paste into Magic Media / DALL-E 3).",
+        help="Print only the magic_media_prompt string (ready to paste into Canva Magic Media / DALL-E 3).",
     )
     args = parser.parse_args(argv)
 
-    result = run_pipeline(args.concept, max_attempts=args.max_attempts)
+    try:
+        result = run_pipeline(args.concept, max_attempts=args.max_attempts)
+    except PipelineError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
 
     if args.raw:
-        print(result.card["prompt_text"])
+        print(result.card["magic_media_prompt"])
     else:
         print(json.dumps(result.card, ensure_ascii=False, indent=2))
 

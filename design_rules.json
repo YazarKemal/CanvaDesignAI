@@ -1,12 +1,27 @@
 {
-  "$schema": "https://canvadesignai.dev/schemas/art-director-constitution-v1.json",
-  "name": "CanvaDesignAI Art Director Constitution",
-  "version": "2.0.0",
-  "description": "Canonical rules for engineering graphic-designer-quality image-generation prompts. The Generator agent applies these to turn a plain concept into a world-class visual prompt for DALL-E 3 / Canva Magic Media; the Reviewer agent scores prompts against this same rubric. This project outputs PROMPTS ONLY — it never generates images or touches any external design tool.",
+  "$schema": "https://canvadesignai.dev/schemas/art-director-constitution-v2.json",
+  "name": "CaVDesign Canva Automation Constitution",
+  "version": "3.0.0",
+  "description": "Canonical rules for a Canva-only automation engine. Every stage (Architect, Generator, Reviewer) runs on DeepSeek and must return a single machine-consumable Canva card — never chat, never a question, never prose outside the card's fields. This project outputs cards ONLY: it never generates images and never touches Canva or any external tool on the user's behalf.",
 
-  "prompt_structure": {
-    "rule": "Compose the main image_prompt as a single flowing sentence (or two), ordered: [subject & action] -> [medium/format] -> [composition & framing] -> [lighting] -> [color & mood] -> [technical/camera details] -> [quality tags]. Front-load the subject; diffusion models weight earlier tokens more heavily.",
-    "length_guideline": "Aim for 40-80 words in image_prompt: specific enough to be unambiguous, short enough to avoid diluting token weight.",
+  "output_contract": {
+    "rule": "The ONLY valid response is one JSON object matching the card schema. No greeting, no explanation, no meta-commentary, no questions back to the user, no markdown outside the JSON. If the request is ambiguous, make the most Canva-sensible assumption and proceed — never ask for clarification.",
+    "mandatory_components": [
+      "magic_media_prompt — a single English prompt, paste-ready for Canva Magic Media / DALL-E 3.",
+      "layer_typography_architecture — headline, subtext, HEX color_palette, headline/body font pairing, and background layer distribution.",
+      "direct_action_tip — an ordered list of short, concrete steps for assembling this exact design inside Canva as fast as possible."
+    ],
+    "forbidden_chat_phrases": [
+      "i can generate", "i can create", "would you like", "do you want", "let me know",
+      "feel free", "sure,", "sure!", "here is", "here's", "i hope this helps",
+      "as an ai", "great question", "of course!", "certainly!", "no problem"
+    ],
+    "enforcement": "This is enforced at the code level (src/schema.py FORBIDDEN_PHRASES), not just via instruction — a card containing any of these phrases anywhere is rejected and regenerated regardless of its Reviewer score."
+  },
+
+  "magic_media_prompt": {
+    "rule": "Compose magic_media_prompt as a single flowing sentence (or two), ordered: [subject & action] -> [medium/format] -> [composition & framing] -> [lighting] -> [color & mood] -> [technical/camera details] -> [quality tags]. Front-load the subject; diffusion models weight earlier tokens more heavily.",
+    "length_guideline": "Aim for 40-80 words: specific enough to be unambiguous, short enough to avoid diluting token weight.",
     "specificity": "Replace every generic noun/adjective with a concrete, visual one (not 'a nice coffee' but 'a flat-white with rosetta latte art in a matte-black ceramic cup'). No abstract concepts the model cannot render (avoid 'success', 'innovation', 'luxury feeling' — show them instead)."
   },
 
@@ -24,7 +39,7 @@
     "rules": [
       "Name an explicit composition technique: rule of thirds, centered symmetry, leading lines, golden ratio, frame-within-a-frame, or negative-space-dominant.",
       "State the camera angle: eye-level, low-angle (heroic), high-angle (diminutive), overhead/flat-lay, or dutch tilt.",
-      "Reserve deliberate negative space when the image is meant to host overlaid text later (the user adds text in Canva) — describe it, e.g. 'clean empty upper third for headline space'.",
+      "Reserve deliberate negative space for the layer_typography_architecture's headline/subtext to sit in — describe it, e.g. 'clean empty upper third for headline space'.",
       "Specify subject placement and scale ('subject on the left third, small in frame' vs 'tight crop filling the frame')."
     ]
   },
@@ -44,7 +59,19 @@
       { "pair": ["saturated warm red", "vivid saturated green"], "reason": "Optical vibration; clashes and reads as amateur. Use a muted or desaturated variant of one side if both hues are required." },
       { "pair": ["saturated magenta", "saturated cyan"], "reason": "Both high-chroma mid-luminance colors fight for attention." }
     ],
-    "rule": "State an explicit palette (3-5 named colors or hex) and a color mood. Prefer a coherent graded look ('warm amber and deep espresso browns with a cream highlight') over a rainbow."
+    "rule": "layer_typography_architecture.color_palette MUST be 3-5 real HEX codes (e.g. '#4A2E1B') consistent with the mood described in magic_media_prompt — never named colors, always HEX."
+  },
+
+  "typography": {
+    "max_families_per_design": 2,
+    "approved_pairings": [
+      { "name": "Modern Bold / Editorial Serif", "headline_font": "Montserrat Bold", "body_font": "Playfair Display", "use_case": "Cafes, boutiques, lifestyle brands." },
+      { "name": "Clean Corporate", "headline_font": "Poppins SemiBold", "body_font": "Lato Regular", "use_case": "SaaS, business, professional services." },
+      { "name": "Friendly Rounded", "headline_font": "Baloo 2 Bold", "body_font": "Nunito Sans Regular", "use_case": "Kids brands, community events, casual food & beverage." },
+      { "name": "Luxury Minimal", "headline_font": "Cormorant Garamond SemiBold", "body_font": "Josefin Sans Regular", "use_case": "High-end retail, weddings, beauty & wellness." },
+      { "name": "Tech / Startup", "headline_font": "Space Grotesk Bold", "body_font": "Inter Regular", "use_case": "Product launches, tech events, app promos." }
+    ],
+    "rule": "Pick ONE approved_pairing (or an equally coherent Canva-available pairing) per card. headline must be short and punchy (<=6 words, placeholder-ready); subtext one short supporting line."
   },
 
   "style_and_mood": {
@@ -55,7 +82,7 @@
   "negative_prompt": {
     "rule": "Always provide a negative_prompt listing what to exclude. Baseline exclusions for any image meant as a clean design base:",
     "baseline": ["text", "watermark", "signature", "logo", "extra fingers", "deformed hands", "distorted faces", "low resolution", "jpeg artifacts", "cluttered background", "harsh oversaturation"],
-    "note": "Diffusion models render embedded text poorly; excluding 'text' keeps the base clean so the user can add real, crisp typography in Canva afterward."
+    "note": "Diffusion models render embedded text poorly; excluding 'text' keeps the base clean so the headline/subtext can be added as real, crisp Canva typography layers."
   },
 
   "aspect_ratio": {
@@ -63,20 +90,24 @@
   },
 
   "target_tools": {
-    "supported": ["DALL-E 3", "Canva Magic Media", "Midjourney"],
-    "rule": "The prompt must be tool-agnostic natural language that works in DALL-E 3 and Canva Magic Media. Do NOT emit Midjourney-only flags (e.g. --ar, --v, ::) in the main image_prompt; express aspect ratio in the dedicated aspect_ratio field instead."
+    "supported": ["Canva Magic Media", "Canva GPT", "DALL-E 3", "Midjourney"],
+    "rule": "magic_media_prompt must be tool-agnostic natural language that works in Canva Magic Media and DALL-E 3. Do NOT emit Midjourney-only flags (e.g. --ar, --v, ::) inside it; express aspect ratio in the dedicated aspect_ratio field instead."
+  },
+
+  "direct_action_tip": {
+    "rule": "direct_action_tip is an ordered array of 2-5 short, imperative steps naming real Canva UI actions (e.g. 'Open Canva > Magic Media, paste the prompt, and generate at the given aspect ratio.', 'Add a Heading text box in the reserved top space and type the headline.', 'Apply the headline_font/body_font pairing from Text > Effects.', 'Recolor accents using the color_palette HEX codes via the color picker.'). No generic advice ('be creative') — every step must be something the user can literally click."
   },
 
   "review_rubric": {
     "criteria": [
-      { "id": "concept_fidelity", "weight": 0.2, "question": "Does the prompt faithfully and vividly capture the user's original concept?" },
-      { "id": "visual_specificity", "weight": 0.2, "question": "Is every element concrete and renderable (subject, medium, lighting) with no vague abstractions?" },
-      { "id": "composition_and_lighting", "weight": 0.15, "question": "Are composition, camera angle, and lighting explicitly and coherently specified?" },
-      { "id": "color_coherence", "weight": 0.15, "question": "Is there a deliberate, harmonious palette and mood that respects the color rules?" },
-      { "id": "canva_fit", "weight": 0.15, "question": "Does it use Canva-friendly library keywords AND reserve deliberate negative space for overlaid text?" },
-      { "id": "tool_readiness", "weight": 0.15, "question": "Will this run cleanly in Canva Magic Media / DALL-E 3 (natural language, sensible length, useful negative prompt, no aspect-ratio flags inside the prompt text)?" }
+      { "id": "concept_fidelity", "weight": 0.15, "question": "Does the card faithfully and vividly capture the user's original concept?" },
+      { "id": "magic_media_prompt_quality", "weight": 0.2, "question": "Is magic_media_prompt concrete, renderable, and correctly ordered (subject->medium->composition->lighting->color->camera->quality) with no vague abstractions?" },
+      { "id": "layer_typography_architecture_quality", "weight": 0.2, "question": "Are headline/subtext sharp and short, is color_palette valid coherent HEX, and is the font pairing + background layer distribution sound?" },
+      { "id": "direct_action_tip_quality", "weight": 0.15, "question": "Are the action steps concrete, ordered, and literally clickable in Canva (not generic advice)?" },
+      { "id": "canva_fit", "weight": 0.15, "question": "Does the prompt use Canva-friendly library keywords AND reserve deliberate negative space for the typography layer?" },
+      { "id": "format_discipline", "weight": 0.15, "question": "Is the output 100% free of chat/question language, greetings, or meta-commentary — pure Canva automation data?" }
     ],
     "pass_threshold": 8.5,
-    "scale": "0-10 per criterion, weighted average determines final score."
+    "scale": "0-10 per criterion, weighted average determines final score. Any detected forbidden_chat_phrase caps format_discipline at 0 regardless of other scoring."
   }
 }

@@ -1,8 +1,9 @@
 """FastAPI backend for CaVDesign — the Canva Prompt Workbench.
 
-Exposes POST /api/chat: given a plain design request, runs the three-stage
-pipeline (DeepSeek Architect -> Claude Generator -> DeepSeek Reviewer) and
-returns a prompt card the Next.js chat UI renders.
+Single-engine architecture: exposes POST /api/chat, which given a plain
+design request runs the three-stage DeepSeek pipeline (Architect ->
+Generator -> Reviewer) and returns a Canva automation card the Next.js
+chat UI renders. Never chats, never asks a question — card only.
 
 Run locally:
     uvicorn api:app --reload --port 8000

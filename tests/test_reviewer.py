@@ -5,12 +5,18 @@ from src.reviewer import review_prompt
 
 CARD = {
     "concept": "Grand Opening Cafe",
-    "prompt_text": "A minimalist flat vector espresso cup, terracotta palette, negative space at top.",
+    "magic_media_prompt": "A minimalist flat vector espresso cup, terracotta palette, negative space at top.",
     "negative_prompt": "embedded text, watermark",
     "aspect_ratio": "1:1 (1080x1080)",
     "target_tool": "Canva Magic Media",
-    "canva_tip": "Add your headline up top.",
-    "art_direction": {"color_palette": ["terracotta", "cream", "espresso"], "lighting": "daylight", "mood": "minimalist"},
+    "layer_typography_architecture": {
+        "headline": "Grand Opening",
+        "subtext": "Freshly roasted, every morning.",
+        "color_palette": ["#4A2E1B", "#D4A373", "#F5EFE6"],
+        "fonts": {"headline_font": "Montserrat Bold", "body_font": "Playfair Display"},
+        "background_layers": "image fills bottom 60%; cream panel behind top 40%",
+    },
+    "direct_action_tip": ["Open Magic Media and paste the prompt.", "Add a heading text box."],
 }
 
 
@@ -28,7 +34,7 @@ class _FakeOpenAIClient:
 
 def test_review_prompt_pass_at_threshold():
     # pass_threshold is 8.5 in the constitution.
-    reply = json.dumps({"score": 8.5, "criteria_scores": {"canva_fit": 9}, "feedback": ""})
+    reply = json.dumps({"score": 8.5, "criteria_scores": {"format_discipline": 10}, "feedback": ""})
     client = _FakeOpenAIClient(reply)
     result = review_prompt(CARD, client=client)
     assert result.passed is True
@@ -48,3 +54,13 @@ def test_review_prompt_strips_markdown_fences():
     client = _FakeOpenAIClient(fenced)
     result = review_prompt(CARD, client=client)
     assert result.passed is True
+
+
+def test_review_prompt_embeds_card_and_rubric_in_request():
+    reply = json.dumps({"score": 9.0, "criteria_scores": {}, "feedback": ""})
+    client = _FakeOpenAIClient(reply)
+    review_prompt(CARD, client=client)
+    system_msg = client.captured_kwargs["messages"][0]["content"]
+    assert "format_discipline" in system_msg
+    user_msg = client.captured_kwargs["messages"][1]["content"]
+    assert "Grand Opening Cafe" in user_msg
