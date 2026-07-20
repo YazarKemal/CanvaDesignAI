@@ -11,6 +11,9 @@ Run locally:
 
 from __future__ import annotations
 
+from dotenv import load_dotenv
+load_dotenv(override=True)
+
 from typing import Any
 
 from fastapi import FastAPI, HTTPException

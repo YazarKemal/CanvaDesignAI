@@ -30,7 +30,7 @@ from typing import Any
 def render_for_assistant_paste(card: dict[str, Any]) -> str:
     """Render `card` as a plain-text block to paste into a Claude/ChatGPT
     chat that has a Canva tool connected."""
-    layer = card["layer_typography_architecture"]
+    art = card.get("art_direction", {})
 
     lines = [
         f"Instruction: Using your connected Canva tool, generate this design now "
@@ -41,19 +41,17 @@ def render_for_assistant_paste(card: dict[str, Any]) -> str:
         f"Concept: {card['concept']}",
         "",
         "Magic Media prompt:",
-        card["magic_media_prompt"],
+        card["prompt_text"],
         "",
         f"Negative prompt: {card['negative_prompt']}",
         "",
-        "Layer & typography architecture:",
-        f"- Headline: {layer['headline']}",
-        f"- Subtext: {layer['subtext']}",
-        f"- Color palette: {', '.join(layer['color_palette'])}",
-        f"- Fonts: {layer['fonts']['headline_font']} / {layer['fonts']['body_font']}",
-        f"- Background layers: {layer['background_layers']}",
+        "Art direction:",
+        f"- Color palette: {', '.join(art.get('color_palette', []))}",
+        f"- Lighting: {art.get('lighting', 'natural')}",
+        f"- Mood: {art.get('mood', 'professional')}",
+        f"- Style: {art.get('magic_media_style', 'Flat Vector')}",
         "",
-        "Direct action steps:",
+        f"Canva tip: {card.get('canva_tip', 'Paste into Magic Media and generate.')}",
     ]
-    lines.extend(f"{i}. {step}" for i, step in enumerate(card["direct_action_tip"], start=1))
 
     return "\n".join(lines)
