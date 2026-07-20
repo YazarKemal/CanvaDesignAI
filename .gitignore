@@ -4,3 +4,7 @@ __pycache__/
 .env
 venv/
 .venv/
+
+# Next.js / frontend build artifacts
+.next/
+node_modules/
