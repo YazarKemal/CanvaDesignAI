@@ -1,6 +1,8 @@
 // Shape returned by the FastAPI /api/chat backend (the Canva automation card).
 // Mirrors src/schema.py's PROMPT_CARD_SCHEMA field-for-field.
 
+export type TextZone = "top" | "bottom" | "left" | "right" | "center";
+
 export interface LayerTypographyArchitecture {
   headline: string;
   subtext: string;
@@ -19,6 +21,7 @@ export interface PromptCard {
   negative_prompt: string;
   aspect_ratio: string;
   target_tool: string;
+  text_zone: TextZone;
   layer_typography_architecture: LayerTypographyArchitecture;
   direct_action_tip: string[];
   canva_keywords?: string[];
@@ -32,6 +35,9 @@ export interface ChatResponse {
   // Plain-text block (directive + full card) ready to paste into a
   // Claude/ChatGPT chat that has a Canva tool connected.
   paste_text: string;
+  // Best available WCAG contrast ratio within color_palette (>= 4.5 = AA).
+  contrast_ratio: number;
+  text_zone: TextZone;
 }
 
 // One entry in the terminal log: either a rendered card or an error line.
@@ -42,5 +48,6 @@ export interface LogEntry {
   approved?: boolean;
   score?: number;
   pasteText?: string;
+  contrastRatio?: number;
   error?: string;
 }

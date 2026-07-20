@@ -44,9 +44,10 @@
     "rules": [
       "Name an explicit composition technique: rule of thirds, centered symmetry, leading lines, golden ratio, frame-within-a-frame, or negative-space-dominant.",
       "State the camera angle: eye-level, low-angle (heroic), high-angle (diminutive), overhead/flat-lay, or dutch tilt.",
-      "Reserve deliberate negative space for the layer_typography_architecture's headline/subtext to sit in — describe it, e.g. 'clean empty upper third for headline space'.",
+      "text_zone (top/bottom/left/right/center) is the ONE canonical decision for where the typography layer lives — set it once in the Architect's brief and reference it verbatim in both magic_media_prompt's negative-space description and layer_typography_architecture.background_layers. Never let the two independently guess a location; that's how the image and the text layer end up disagreeing about where the headline goes. Enforced at the code level in src/schema.py.",
       "Specify subject placement and scale ('subject on the left third, small in frame' vs 'tight crop filling the frame')."
-    ]
+    ],
+    "visual_weight_balance": "The generated subject and the text_zone should not compete for the same visual weight — if the subject is large/centered, text_zone should be an edge (top/bottom/left/right); reserve text_zone 'center' only when the subject is deliberately small, cropped, or absent from that area. This is a Reviewer judgment call (concept_fidelity/canva_fit), not a hard-coded check."
   },
 
   "lighting": {
@@ -64,7 +65,9 @@
       { "pair": ["saturated warm red", "vivid saturated green"], "reason": "Optical vibration; clashes and reads as amateur. Use a muted or desaturated variant of one side if both hues are required." },
       { "pair": ["saturated magenta", "saturated cyan"], "reason": "Both high-chroma mid-luminance colors fight for attention." }
     ],
-    "rule": "layer_typography_architecture.color_palette MUST be 3-5 real HEX codes (e.g. '#4A2E1B') consistent with the mood described in magic_media_prompt — never named colors, always HEX."
+    "rule": "layer_typography_architecture.color_palette MUST be 3-5 real HEX codes (e.g. '#4A2E1B') consistent with the mood described in magic_media_prompt — never named colors, always HEX.",
+    "min_contrast_ratio": 4.5,
+    "contrast_rule": "The palette MUST include at least one pair of colors with a WCAG contrast ratio >= 4.5:1 (AA for normal-size text) — this simulates headline text drawn in one palette color over another. Include one near-black or near-white anchor alongside the mood colors so this is always achievable. Enforced at the code level in src/schema.py/src/color_science.py, not just described here — a palette below 4.5:1 is rejected and regenerated."
   },
 
   "typography": {
@@ -74,9 +77,14 @@
       { "name": "Clean Corporate", "headline_font": "Poppins SemiBold", "body_font": "Lato Regular", "use_case": "SaaS, business, professional services." },
       { "name": "Friendly Rounded", "headline_font": "Baloo 2 Bold", "body_font": "Nunito Sans Regular", "use_case": "Kids brands, community events, casual food & beverage." },
       { "name": "Luxury Minimal", "headline_font": "Cormorant Garamond SemiBold", "body_font": "Josefin Sans Regular", "use_case": "High-end retail, weddings, beauty & wellness." },
-      { "name": "Tech / Startup", "headline_font": "Space Grotesk Bold", "body_font": "Inter Regular", "use_case": "Product launches, tech events, app promos." }
+      { "name": "Tech / Startup", "headline_font": "Space Grotesk Bold", "body_font": "Inter Regular", "use_case": "Product launches, tech events, app promos." },
+      { "name": "Elegant Script / Serif", "headline_font": "Alex Brush", "body_font": "Cormorant Garamond Regular", "use_case": "Weddings, invitations, romantic/celebratory events." },
+      { "name": "Bold Slab / Energetic Sans", "headline_font": "Anton", "body_font": "Oswald Regular", "use_case": "Sports, sales, high-energy promotions, streetwear." },
+      { "name": "Geometric Playful", "headline_font": "Fredoka Bold", "body_font": "Quicksand Regular", "use_case": "Kids brands, playful apps, birthday/party events." },
+      { "name": "Editorial Magazine", "headline_font": "Bebas Neue", "body_font": "Source Serif Pro Regular", "use_case": "Editorial covers, fashion, culture/lifestyle media." }
     ],
-    "rule": "Pick ONE approved_pairing (or an equally coherent Canva-available pairing) per card. headline must be short and punchy (<=6 words, placeholder-ready); subtext one short supporting line."
+    "rule": "Pick ONE approved_pairing (or an equally coherent Canva-available pairing) per card. headline must be short and punchy (<=6 words, placeholder-ready); subtext one short supporting line (<=14 words). Both limits are enforced at the code level in src/schema.py.",
+    "size_hierarchy": "State the relative scale in background_layers so the hierarchy is explicit, not implied — e.g. 'headline set roughly 3x the point size of subtext'. The headline must dominate the composition's typographic weight; subtext is visibly secondary."
   },
 
   "style_and_mood": {
@@ -107,9 +115,9 @@
     "criteria": [
       { "id": "concept_fidelity", "weight": 0.15, "question": "Does the card faithfully and vividly capture the user's original concept?" },
       { "id": "magic_media_prompt_quality", "weight": 0.2, "question": "Is magic_media_prompt concrete, renderable, and correctly ordered (subject->medium->composition->lighting->color->camera->quality) with no vague abstractions?" },
-      { "id": "layer_typography_architecture_quality", "weight": 0.2, "question": "Are headline/subtext sharp and short, is color_palette valid coherent HEX, and is the font pairing + background layer distribution sound?" },
+      { "id": "layer_typography_architecture_quality", "weight": 0.2, "question": "Are headline/subtext sharp and short, is color_palette valid coherent HEX with a real contrast anchor, and is the font pairing + size hierarchy + background layer distribution sound?" },
       { "id": "direct_action_tip_quality", "weight": 0.15, "question": "Are the action steps concrete, ordered, and literally clickable in Canva (not generic advice)?" },
-      { "id": "canva_fit", "weight": 0.15, "question": "Does the prompt use Canva-friendly library keywords AND reserve deliberate negative space for the typography layer?" },
+      { "id": "canva_fit", "weight": 0.15, "question": "Does the prompt use Canva-friendly library keywords, reserve deliberate negative space exactly at text_zone, and does the subject's visual weight avoid competing with the text_zone?" },
       { "id": "format_discipline", "weight": 0.15, "question": "Is the output 100% free of chat/question language, greetings, or meta-commentary — pure Canva automation data?" }
     ],
     "pass_threshold": 8.5,

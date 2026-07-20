@@ -4,6 +4,7 @@
   "negative_prompt": "embedded text, watermark, logo, cluttered composition, extra fingers, low resolution, jpeg artifacts, harsh oversaturation",
   "aspect_ratio": "1:1 (1080x1080)",
   "target_tool": "Canva Magic Media",
+  "text_zone": "top",
   "layer_typography_architecture": {
     "headline": "Grand Opening",
     "subtext": "Freshly roasted, every morning.",

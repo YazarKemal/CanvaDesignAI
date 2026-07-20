@@ -1,22 +1,18 @@
-"""Lightweight HTTP clients that replace the openai / anthropic SDKs.
+"""Lightweight HTTP client that replaces the `openai` SDK for DeepSeek.
 
-Both SDKs depend on `jiter` (a C extension that won't compile on Android ARM64).
-This module provides drop-in-compatible wrappers around httpx so the pipeline
-works on any platform without native dependencies.
+The `openai` SDK depends on `jiter` (a C extension that won't compile on
+Android ARM64 / Termux). This module provides a drop-in-compatible wrapper
+around httpx so the single-engine DeepSeek pipeline works on any platform
+without native dependencies.
 """
 
 from __future__ import annotations
 
-import json
 import os
 from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
-
-# ---------------------------------------------------------------------------
-# DeepSeek (OpenAI-compatible) client
-# ---------------------------------------------------------------------------
 
 
 class DeepSeekChatCompletion:
@@ -106,68 +102,3 @@ class DeepSeekClient:
     @property
     def chat(self) -> DeepSeekChatNamespace:
         return DeepSeekChatNamespace(self._chat_completion)
-
-
-# ---------------------------------------------------------------------------
-# Anthropic (Claude) client
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class AnthropicTextBlock:
-    text: str
-    type: str = "text"
-
-
-@dataclass
-class AnthropicMessage:
-    content: list[AnthropicTextBlock]
-
-
-class AnthropicMessages:
-    def __init__(self, client: AnthropicClient):
-        self._client = client
-
-    def create(
-        self,
-        *,
-        model: str,
-        max_tokens: int,
-        system: str,
-        messages: list[dict[str, str]],
-    ) -> AnthropicMessage:
-        url = "https://api.anthropic.com/v1/messages"
-        resp = httpx.post(
-            url,
-            json={
-                "model": model,
-                "max_tokens": max_tokens,
-                "system": system,
-                "messages": messages,
-            },
-            headers={
-                "x-api-key": self._client.api_key,
-                "anthropic-version": "2023-06-01",
-                "Content-Type": "application/json",
-            },
-            timeout=120.0,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        blocks = [
-            AnthropicTextBlock(text=b["text"])
-            for b in data.get("content", [])
-            if b.get("type") == "text"
-        ]
-        return AnthropicMessage(content=blocks)
-
-
-class AnthropicClient:
-    """Drop-in for `anthropic.Anthropic(...)`."""
-
-    def __init__(self, api_key: str | None = None):
-        self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY", "")
-
-    @property
-    def messages(self) -> AnthropicMessages:
-        return AnthropicMessages(self)

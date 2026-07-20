@@ -20,6 +20,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from src.color_science import best_contrast_pair
 from src.orchestrator import DEFAULT_MAX_ATTEMPTS, run_pipeline
 from src.paste_render import render_for_assistant_paste
 
@@ -45,6 +46,8 @@ class ChatResponse(BaseModel):
     score: float
     attempts: int
     paste_text: str
+    contrast_ratio: float
+    text_zone: str
 
 
 # ---------------------------------------------------------------------------
@@ -101,10 +104,14 @@ def chat(request: ChatRequest) -> ChatResponse:
     except Exception as exc:  # surface engine/LLM failures as 502s
         raise HTTPException(status_code=502, detail=f"Pipeline failed: {exc}") from exc
 
+    _a, _b, ratio = best_contrast_pair(result.card["layer_typography_architecture"]["color_palette"])
+
     return ChatResponse(
         card=result.card,
         approved=result.approved,
         score=result.review.score,
         attempts=result.attempts,
         paste_text=render_for_assistant_paste(result.card),
+        contrast_ratio=round(ratio, 1),
+        text_zone=result.card["text_zone"],
     )

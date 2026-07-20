@@ -10,6 +10,7 @@ CARD = {
     "negative_prompt": "embedded text, watermark",
     "aspect_ratio": "1:1 (1080x1080)",
     "target_tool": "Canva Magic Media",
+    "text_zone": "top",
     "layer_typography_architecture": {
         "headline": "Grand Opening",
         "subtext": "Freshly roasted, every morning.",
@@ -45,6 +46,8 @@ def test_chat_returns_card(monkeypatch):
     assert body["card"]["target_tool"] == "Canva Magic Media"
     assert body["paste_text"].startswith("Instruction:")
     assert CARD["magic_media_prompt"] in body["paste_text"]
+    assert body["text_zone"] == "top"
+    assert body["contrast_ratio"] > 4.5
 
 
 def test_chat_rejects_empty_message():
