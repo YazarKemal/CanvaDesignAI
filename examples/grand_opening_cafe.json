@@ -1,12 +1,15 @@
 {
-  "theme": "Modern Cafe",
-  "color_palette": ["#4A2E1B", "#F5EFE6", "#D4A373"],
-  "typography": {
-    "headline": "Placeholder: [Cafe Name]",
-    "body_text": "Join us for warm vibes!"
+  "concept": "Grand Opening Cafe",
+  "image_prompt": "A flat-white with delicate rosetta latte art in a matte-black ceramic cup, resting on a reclaimed-oak counter, photography shot on 85mm f/1.4 with shallow depth of field, rule-of-thirds with the cup on the lower-left third and clean empty upper space reserved for a headline, soft golden-hour window light raking in from the right, warm amber and deep espresso tones against a cream background, cozy and artisanal mood, high detail.",
+  "negative_prompt": "text, watermark, signature, logo, extra fingers, deformed hands, cluttered background, low resolution, jpeg artifacts, harsh oversaturation",
+  "art_direction": {
+    "medium": "photography",
+    "composition": "rule of thirds, subject lower-left, empty upper third for headline, eye-level",
+    "lighting": "soft golden-hour window light from the right",
+    "color_palette": ["#4A2E1B", "#D4A373", "#F5EFE6"],
+    "mood": "cozy, artisanal, inviting",
+    "camera": "85mm f/1.4, shallow depth of field"
   },
-  "image_prompts": {
-    "main_visual": "Cinematic shot of a latte with perfect micro-foam art, resting on a wooden table, soft window light, subtle drop shadow."
-  },
-  "layout_instructions": "Place text at the top 40% of the canvas. Keep the bottom 60% for the main visual inside a draggable frame."
+  "aspect_ratio": "4:5",
+  "target_tools": ["DALL-E 3", "Canva Magic Media"]
 }
