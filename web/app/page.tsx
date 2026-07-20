@@ -108,9 +108,11 @@ export default function Home() {
           {
             id,
             concept: `${source.concept} → ${format}`,
-            card: variant,
+            card: variant.card,
             approved: true,
             score: source.score,
+            pasteText: variant.paste_text,
+            contrastRatio: variant.contrast_ratio,
             sourceFormat: format,
           },
         ]);

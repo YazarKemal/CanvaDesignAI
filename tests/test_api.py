@@ -106,6 +106,10 @@ def test_adapt_returns_variants(monkeypatch):
     assert resp.status_code == 200
     variants = resp.json()["variants"]
     assert set(variants) == {"instagram_story", "banner"}
+    for fmt in ("instagram_story", "banner"):
+        assert variants[fmt]["card"]["aspect_ratio"] == fmt
+        assert "Grand Opening" in variants[fmt]["paste_text"]
+        assert variants[fmt]["contrast_ratio"] > 0
 
 
 def test_adapt_unknown_format_returns_400(monkeypatch):
