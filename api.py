@@ -44,6 +44,46 @@ class ChatResponse(BaseModel):
     paste_text: str
 
 
+# ---------------------------------------------------------------------------
+# Hard Canva system prompt — injected into every request so the pipeline
+# always produces copy-paste-ready Canva Magic Media / Canva GPT output.
+# ---------------------------------------------------------------------------
+CANVA_SYSTEM_PREAMBLE = """\
+[CANVA SYSTEM INSTRUCTION — STRICT MODE]
+You are generating a design prompt for Canva. Follow these hard rules:
+
+1. OUTPUT MUST be a single, self-contained image-generation prompt suitable for:
+   - Canva Magic Media (primary target)
+   - Canva GPT / DALL-E 3 (secondary)
+   - Adobe Firefly (tertiary)
+
+2. The prompt MUST include deliberate empty negative space — at least 20-30% of the
+   composition reserved for the user to overlay text, logos, or UI elements in Canva.
+
+3. Embed these Canva library keywords naturally in the prompt text:
+   "flat vector illustration", "isolated element on transparent background",
+   "clean composition", "minimalist"
+
+4. NEVER put embedded text, words, letters, logos or watermarks in the image.
+   The design must be a blank canvas ready for the user's own typography.
+
+5. Aspect ratio MUST match the detected use-case:
+   - Instagram/Square → 1:1 (1080×1080)
+   - YouTube/Thumbnail → 16:9 (1920×1080)
+   - TikTok/Reels → 9:16 (1080×1920)
+
+6. Color palette: prefer on-trend, harmonious palettes suitable for social media.
+   Default to warm, professional tones unless the user specifies otherwise.
+
+7. Target Tool default: "Canva Magic Media". The prompt must be in English
+   regardless of the user's input language — Canva's ML models perform best
+   with English prompts.
+
+END CANVA SYSTEM INSTRUCTION
+
+User request: """
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -51,8 +91,10 @@ def health() -> dict[str, str]:
 
 @app.post("/api/chat", response_model=ChatResponse)
 def chat(request: ChatRequest) -> ChatResponse:
+    # Inject hard Canva system instructions before the user's message.
+    augmented_message = CANVA_SYSTEM_PREAMBLE + request.message
     try:
-        result = run_pipeline(request.message, max_attempts=request.max_attempts)
+        result = run_pipeline(augmented_message, max_attempts=request.max_attempts)
     except Exception as exc:  # surface engine/LLM failures as 502s
         raise HTTPException(status_code=502, detail=f"Pipeline failed: {exc}") from exc
 

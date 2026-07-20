@@ -13,7 +13,10 @@ import os
 from dataclasses import dataclass, field
 from typing import Any
 
-from openai import OpenAI
+try:
+    from openai import OpenAI  # type: ignore[import-untyped]
+except ImportError:
+    OpenAI = None  # type: ignore[assignment]
 
 from src.constitution import as_prompt_block, load_constitution
 from src.llm_json import extract_json
@@ -78,10 +81,15 @@ def review_prompt(
     rubric = constitution["review_rubric"]
     pass_threshold = float(rubric["pass_threshold"])
 
-    client = client or OpenAI(
-        api_key=os.environ.get("DEEPSEEK_API_KEY"),
-        base_url=os.environ.get("DEEPSEEK_BASE_URL", DEFAULT_BASE_URL),
-    )
+    if client is None:
+        if OpenAI is not None:
+            client = OpenAI(
+                api_key=os.environ.get("DEEPSEEK_API_KEY"),
+                base_url=os.environ.get("DEEPSEEK_BASE_URL", DEFAULT_BASE_URL),
+            )
+        else:
+            from src.http_client import DeepSeekClient
+            client = DeepSeekClient()  # type: ignore[assignment]
 
     response = client.chat.completions.create(
         model=model,
