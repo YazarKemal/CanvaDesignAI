@@ -1,15 +1,15 @@
 {
   "concept": "Grand Opening Cafe",
-  "image_prompt": "A flat-white with delicate rosetta latte art in a matte-black ceramic cup, resting on a reclaimed-oak counter, photography shot on 85mm f/1.4 with shallow depth of field, rule-of-thirds with the cup on the lower-left third and clean empty upper space reserved for a headline, soft golden-hour window light raking in from the right, warm amber and deep espresso tones against a cream background, cozy and artisanal mood, high detail.",
-  "negative_prompt": "text, watermark, signature, logo, extra fingers, deformed hands, cluttered background, low resolution, jpeg artifacts, harsh oversaturation",
+  "prompt_text": "A minimalist 3d flat vector illustration for a specialty coffee shop grand opening, earthy terracotta and warm cream color palette, top-down view of an espresso cup next to an open notebook, ample negative space at the top for overlaying text in Canva, vintage aesthetic, clean lines, isolated on a plain background.",
+  "negative_prompt": "embedded text, watermark, logo, cluttered composition, extra fingers, low resolution, jpeg artifacts, harsh oversaturation",
+  "aspect_ratio": "1:1 (1080x1080)",
+  "target_tool": "Canva Magic Media",
+  "canva_tip": "Paste into Magic Media, then drop your headline into the empty top third.",
   "art_direction": {
-    "medium": "photography",
-    "composition": "rule of thirds, subject lower-left, empty upper third for headline, eye-level",
-    "lighting": "soft golden-hour window light from the right",
-    "color_palette": ["#4A2E1B", "#D4A373", "#F5EFE6"],
-    "mood": "cozy, artisanal, inviting",
-    "camera": "85mm f/1.4, shallow depth of field"
+    "color_palette": ["terracotta", "warm cream", "espresso brown"],
+    "lighting": "soft natural daylight",
+    "mood": "minimalist, vintage, artisanal",
+    "magic_media_style": "Flat Vector"
   },
-  "aspect_ratio": "4:5",
-  "target_tools": ["DALL-E 3", "Canva Magic Media"]
+  "canva_keywords": ["flat vector illustration", "isolated element on transparent background"]
 }

@@ -1,100 +1,92 @@
-# CanvaDesignAI
+# CaVDesign — Canva Prompt Workbench
 
-A **Visual Design Prompt Engine** (an "Art Director" in code). You give it a
-plain concept — `"Grand Opening Cafe"` — and its dual-agent system engineers
-a graphic-designer-quality **image-generation prompt** you can paste straight
-into DALL·E 3 or Canva Magic Media.
+A chat-driven **prompt engine** that knows Canva's visual language cold. You
+type a plain idea — `"Kafe açılışı için Instagram gönderisi"` — and a
+three-agent pipeline hands back a copy-paste-ready image prompt tuned for
+**Canva Magic Media / Canva GPT / DALL·E 3**, with the right canvas size,
+art direction, and deliberate negative space for your text.
 
-It's for people who already have ChatGPT Pro or Canva Pro but can't reliably
-get *consistent, designer-grade* results out of them. This tool automates the
-prompt-engineering craft — color theory, photography language, composition,
-lighting, and mood — so every prompt lands.
+It's for people who already have Canva Pro or ChatGPT Pro but can't reliably
+get consistent, designer-grade results out of them. **Prompts only** — this
+project never generates images or logs into Canva.
 
-> **Scope:** this project outputs **prompts only**. It does not generate
-> images and does not connect to Canva, DALL·E, or any external service —
-> you run the prompt in the tool you already pay for.
-
-## 1. The Art Director Constitution
-
-[`design_rules.json`](design_rules.json) is the single source of truth both
-agents obey. It codifies the craft of a great image prompt:
-
-- **Prompt structure** — token ordering (subject → medium → composition →
-  lighting → color → camera → quality), length, and a specificity mandate.
-- **Medium & photography** — explicit mediums plus camera/lens, film-stock,
-  and depth-of-field vocabulary.
-- **Composition** — rule of thirds, camera angles, deliberate negative space
-  (so you can add real text in Canva afterward).
-- **Lighting** — a vocabulary of setups; lighting is never left implicit.
-- **Color theory** — harmony schemes, 60-30-10 weighting, forbidden clashes.
-- **Style & mood, negative prompts, aspect ratio, target tools**.
-- **Review rubric** — the weighted criteria and pass threshold the Reviewer
-  scores against.
-
-## 2. Dual-Agent Validation
+## Architecture
 
 ```
-concept ──▶ Generator (Claude) ──▶ prompt ──▶ Reviewer (DeepSeek) ──▶ score
-                 ▲                                    │
-                 └──────────── feedback (if score < threshold) ─────┘
+[ Chat UI (CaVDesign, Next.js) ]
+        │  "Kafe açılışı için Instagram gönderisi"
+        ▼
+[ DeepSeek — Architect / Canva expert ]   src/architect.py
+        │  detects category + dimensions, locks art direction & negative space
+        ▼
+[ Claude — Prompt Engineer ]              src/generator.py
+        │  writes the copy-paste-ready prompt card
+        ▼
+[ DeepSeek — Reviewer ]                    src/reviewer.py
+        │  scores it; if < 8.5, feedback goes back to the Generator to revise
+        ▼
+[ Chat UI — Prompt Card ]  (one-click copy + parameters)
 ```
 
-- **Generator** (`src/generator.py`, Claude): the art director. Turns your
-  concept into a structured visual prompt honoring the constitution.
-- **Reviewer** (`src/reviewer.py`, DeepSeek — fast & cheap): scores the prompt
-  on concept fidelity, visual specificity, composition/lighting, color
-  coherence, and tool-readiness, returning actionable feedback when it falls
-  short.
-- **Orchestrator** (`src/orchestrator.py`): loops Generator → Reviewer,
-  feeding feedback back for revision up to `max_attempts`, and returns the
-  best-scoring prompt.
+- **`src/canva_rules.py`** — the Canva knowledge base: canvas dimensions,
+  Magic Media styles, and the element/library keywords Canva's algorithms
+  understand best. Both agents share it as one source of truth.
+- **`design_rules.json`** — the Art Director Constitution (prompt structure,
+  photography/composition/lighting/color rules, and the review rubric with an
+  **8.5** pass threshold).
+- **`src/orchestrator.py`** — runs Architect → Generator → Reviewer, looping
+  on feedback up to `max_attempts` and returning the best-scoring card.
+- **`api.py`** — FastAPI `POST /api/chat` that runs the pipeline.
+- **`web/`** — the CaVDesign Next.js chat UI (terminal aesthetic).
 
-## 3. Structured Output
-
-The result is always this shape (validated by [`src/schema.py`](src/schema.py)):
+## Prompt card (output shape)
 
 ```json
 {
   "concept": "Grand Opening Cafe",
-  "image_prompt": "A flat-white with delicate rosetta latte art in a matte-black ceramic cup, resting on a reclaimed-oak counter, photography shot on 85mm f/1.4 with shallow depth of field, rule-of-thirds with the cup on the lower-left third and clean empty upper space reserved for a headline, soft golden-hour window light raking in from the right, warm amber and deep espresso tones against a cream background, cozy and artisanal mood, high detail.",
-  "negative_prompt": "text, watermark, signature, logo, extra fingers, deformed hands, cluttered background, low resolution, jpeg artifacts, harsh oversaturation",
+  "prompt_text": "A minimalist 3d flat vector illustration for a specialty coffee shop grand opening, earthy terracotta and warm cream color palette, top-down view of an espresso cup next to an open notebook, ample negative space at the top for overlaying text in Canva, vintage aesthetic, clean lines, isolated on a plain background.",
+  "negative_prompt": "embedded text, watermark, logo, cluttered composition, ...",
+  "aspect_ratio": "1:1 (1080x1080)",
+  "target_tool": "Canva Magic Media",
+  "canva_tip": "Paste into Magic Media, then drop your headline into the empty top third.",
   "art_direction": {
-    "medium": "photography",
-    "composition": "rule of thirds, subject lower-left, empty upper third for headline, eye-level",
-    "lighting": "soft golden-hour window light from the right",
-    "color_palette": ["#4A2E1B", "#D4A373", "#F5EFE6"],
-    "mood": "cozy, artisanal, inviting",
-    "camera": "85mm f/1.4, shallow depth of field"
+    "color_palette": ["terracotta", "warm cream", "espresso brown"],
+    "lighting": "soft natural daylight",
+    "mood": "minimalist, vintage, artisanal",
+    "magic_media_style": "Flat Vector"
   },
-  "aspect_ratio": "4:5",
-  "target_tools": ["DALL-E 3", "Canva Magic Media"]
+  "canva_keywords": ["flat vector illustration", "isolated element on transparent background"]
 }
 ```
 
-`image_prompt` is the star; `negative_prompt` excludes the usual diffusion
-artifacts (including embedded text, so your base image stays clean for real
-typography in Canva). See
+The field names map 1:1 onto the `ChatPromptCard` UI component. See
 [`examples/grand_opening_cafe.json`](examples/grand_opening_cafe.json).
 
-## Usage
+## Run
 
 ```bash
+# Backend engine
 pip install -r requirements.txt
-cp .env.example .env   # fill in ANTHROPIC_API_KEY and DEEPSEEK_API_KEY
+cp .env.example .env          # ANTHROPIC_API_KEY + DEEPSEEK_API_KEY
+uvicorn api:app --port 8000
 
-# Full structured output:
+# CLI (no server needed)
 python main.py "Grand Opening Cafe"
+python main.py "Grand Opening Cafe" --raw   # just the prompt string
 
-# Just the prompt string, ready to paste into DALL-E 3 / Magic Media:
-python main.py "Grand Opening Cafe" --raw
+# Frontend (separate terminal)
+cd web && cp .env.example .env.local && npm install && npm run dev
 ```
 
 ## Development
 
 ```bash
 pip install -r requirements.txt pytest
-pytest
+pytest                        # 25 tests, fully offline (mocked LLM/HTTP)
+
+cd web && npm run typecheck && npm run build
 ```
 
-All API calls are wrapped behind injectable clients, so the test suite runs
-fully offline against mocked Anthropic/DeepSeek responses.
+All API calls sit behind injectable clients, so the Python suite runs fully
+offline against mocked Anthropic/DeepSeek responses and a mocked pipeline for
+the FastAPI endpoint.

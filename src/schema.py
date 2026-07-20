@@ -1,9 +1,10 @@
-"""JSON schema and validator for the visual-prompt output.
+"""JSON schema and validator for the Canva prompt card.
 
-Every prompt produced by the Generator agent must conform to this schema
-before it is handed to the Reviewer agent. The deliverable is a
-graphic-designer-quality image-generation PROMPT (for DALL-E 3 / Canva
-Magic Media) — this project never generates images itself.
+The pipeline's deliverable is a single "prompt card" — a copy-paste-ready
+image prompt plus the parameters the CaVDesign chat UI renders. The field
+names below map 1:1 onto the ChatPromptCard component (prompt_text,
+aspect_ratio, target_tool, canva_tip). This project outputs prompts only;
+it never generates images.
 """
 
 from __future__ import annotations
@@ -12,45 +13,45 @@ from typing import Any
 
 import jsonschema
 
-PROMPT_OUTPUT_SCHEMA: dict[str, Any] = {
+PROMPT_CARD_SCHEMA: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "CanvaDesignAI Visual Prompt Output",
+    "title": "CaVDesign Prompt Card",
     "type": "object",
     "required": [
         "concept",
-        "image_prompt",
+        "prompt_text",
         "negative_prompt",
-        "art_direction",
         "aspect_ratio",
-        "target_tools",
+        "target_tool",
+        "canva_tip",
+        "art_direction",
     ],
     "properties": {
         "concept": {"type": "string", "minLength": 1},
-        "image_prompt": {"type": "string", "minLength": 30},
+        "prompt_text": {"type": "string", "minLength": 30},
         "negative_prompt": {"type": "string", "minLength": 1},
+        "aspect_ratio": {"type": "string", "minLength": 1},
+        "target_tool": {"type": "string", "minLength": 1},
+        "canva_tip": {"type": "string", "minLength": 1},
         "art_direction": {
             "type": "object",
-            "required": ["medium", "composition", "lighting", "color_palette", "mood"],
+            "required": ["color_palette", "lighting", "mood"],
             "properties": {
-                "medium": {"type": "string", "minLength": 1},
-                "composition": {"type": "string", "minLength": 1},
-                "lighting": {"type": "string", "minLength": 1},
                 "color_palette": {
                     "type": "array",
                     "items": {"type": "string", "minLength": 1},
                     "minItems": 3,
                     "maxItems": 5,
                 },
+                "lighting": {"type": "string", "minLength": 1},
                 "mood": {"type": "string", "minLength": 1},
-                "camera": {"type": "string"},
+                "magic_media_style": {"type": "string"},
             },
             "additionalProperties": True,
         },
-        "aspect_ratio": {"type": "string", "pattern": r"^\d{1,2}:\d{1,2}$"},
-        "target_tools": {
+        "canva_keywords": {
             "type": "array",
             "items": {"type": "string", "minLength": 1},
-            "minItems": 1,
         },
     },
     "additionalProperties": True,
@@ -58,15 +59,15 @@ PROMPT_OUTPUT_SCHEMA: dict[str, Any] = {
 
 
 class PromptValidationError(ValueError):
-    """Raised when a prompt draft does not conform to PROMPT_OUTPUT_SCHEMA."""
+    """Raised when a prompt card does not conform to PROMPT_CARD_SCHEMA."""
 
 
-def validate_prompt(draft: dict[str, Any]) -> None:
-    """Validate a visual-prompt draft against the output schema.
+def validate_prompt(card: dict[str, Any]) -> None:
+    """Validate a prompt card against the output schema.
 
     Raises PromptValidationError with a readable message if invalid.
     """
     try:
-        jsonschema.validate(instance=draft, schema=PROMPT_OUTPUT_SCHEMA)
+        jsonschema.validate(instance=card, schema=PROMPT_CARD_SCHEMA)
     except jsonschema.ValidationError as exc:
-        raise PromptValidationError(f"Prompt draft failed schema validation: {exc.message}") from exc
+        raise PromptValidationError(f"Prompt card failed schema validation: {exc.message}") from exc

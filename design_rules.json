@@ -69,13 +69,14 @@
 
   "review_rubric": {
     "criteria": [
-      { "id": "concept_fidelity", "weight": 0.25, "question": "Does the prompt faithfully and vividly capture the user's original concept?" },
-      { "id": "visual_specificity", "weight": 0.25, "question": "Is every element concrete and renderable (subject, medium, lens, lighting) with no vague abstractions?" },
-      { "id": "composition_and_lighting", "weight": 0.2, "question": "Are composition, camera angle, and lighting explicitly and coherently specified?" },
+      { "id": "concept_fidelity", "weight": 0.2, "question": "Does the prompt faithfully and vividly capture the user's original concept?" },
+      { "id": "visual_specificity", "weight": 0.2, "question": "Is every element concrete and renderable (subject, medium, lighting) with no vague abstractions?" },
+      { "id": "composition_and_lighting", "weight": 0.15, "question": "Are composition, camera angle, and lighting explicitly and coherently specified?" },
       { "id": "color_coherence", "weight": 0.15, "question": "Is there a deliberate, harmonious palette and mood that respects the color rules?" },
-      { "id": "tool_readiness", "weight": 0.15, "question": "Will this run cleanly in DALL-E 3 / Magic Media (natural language, sensible length, useful negative prompt, no tool-specific junk)?" }
+      { "id": "canva_fit", "weight": 0.15, "question": "Does it use Canva-friendly library keywords AND reserve deliberate negative space for overlaid text?" },
+      { "id": "tool_readiness", "weight": 0.15, "question": "Will this run cleanly in Canva Magic Media / DALL-E 3 (natural language, sensible length, useful negative prompt, no aspect-ratio flags inside the prompt text)?" }
     ],
-    "pass_threshold": 8.0,
+    "pass_threshold": 8.5,
     "scale": "0-10 per criterion, weighted average determines final score."
   }
 }

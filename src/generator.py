@@ -1,9 +1,9 @@
-"""Generator agent: turns a plain concept into a world-class visual prompt.
+"""Generator agent (Stage 2): Claude as the Canva prompt engineer.
 
-Uses Claude (Anthropic API) with the Art Director Constitution embedded as
-a system prompt, and forces the reply into the PROMPT_OUTPUT_SCHEMA shape.
-The output is a PROMPT for DALL-E 3 / Canva Magic Media — this agent never
-generates images.
+Takes the Architect's technical design brief and turns it into a single
+copy-paste-ready image prompt (for Canva Magic Media / DALL-E 3 / Canva
+GPT), formatted as the prompt card the UI renders. It never generates
+images — only the prompt.
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ from typing import Any
 
 import anthropic
 
+from src.canva_rules import CANVA_KNOWLEDGE_BASE
 from src.constitution import as_prompt_block, load_constitution
 from src.schema import PromptValidationError, validate_prompt
 
@@ -21,53 +22,53 @@ DEFAULT_MODEL = "claude-sonnet-5"
 
 OUTPUT_FORMAT_EXAMPLE = {
     "concept": "Grand Opening Cafe",
-    "image_prompt": (
-        "A flat-white with delicate rosetta latte art in a matte-black ceramic cup, "
-        "resting on a reclaimed-oak counter, photography shot on 85mm f/1.4 with "
-        "shallow depth of field, rule-of-thirds with the cup on the lower-left third "
-        "and clean empty upper space for a headline, soft golden-hour window light "
-        "raking from the right, warm amber and deep espresso tones against a cream "
-        "background, cozy and artisanal mood, high detail."
+    "prompt_text": (
+        "A minimalist 3d flat vector illustration for a specialty coffee shop grand "
+        "opening, earthy terracotta and warm cream color palette, top-down view of an "
+        "espresso cup next to an open notebook, ample negative space at the top for "
+        "overlaying text in Canva, vintage aesthetic, clean lines, isolated on a plain "
+        "background."
     ),
     "negative_prompt": (
-        "text, watermark, signature, logo, extra fingers, deformed hands, cluttered "
-        "background, low resolution, jpeg artifacts, harsh oversaturation"
+        "embedded text, watermark, logo, cluttered composition, extra fingers, "
+        "low resolution, jpeg artifacts, harsh oversaturation"
     ),
+    "aspect_ratio": "1:1 (1080x1080)",
+    "target_tool": "Canva Magic Media",
+    "canva_tip": "Paste into Magic Media, then drop your headline into the empty top third.",
     "art_direction": {
-        "medium": "photography",
-        "composition": "rule of thirds, subject lower-left, empty upper third for headline, eye-level",
-        "lighting": "soft golden-hour window light from the right",
-        "color_palette": ["#4A2E1B", "#D4A373", "#F5EFE6"],
-        "mood": "cozy, artisanal, inviting",
-        "camera": "85mm f/1.4, shallow depth of field",
+        "color_palette": ["terracotta", "warm cream", "espresso brown"],
+        "lighting": "soft natural daylight",
+        "mood": "minimalist, vintage, artisanal",
+        "magic_media_style": "Flat Vector",
     },
-    "aspect_ratio": "4:5",
-    "target_tools": ["DALL-E 3", "Canva Magic Media"],
+    "canva_keywords": ["flat vector illustration", "isolated element on transparent background"],
 }
 
 
 def _system_prompt() -> str:
+    kb = json.dumps(CANVA_KNOWLEDGE_BASE, ensure_ascii=False, indent=2)
     return (
-        "You are the Generator agent inside CanvaDesignAI — a world-class art "
-        "director and prompt engineer. Given a plain concept, you engineer ONE "
-        "graphic-designer-quality image-generation prompt (for DALL-E 3 / Canva "
-        "Magic Media) as a single JSON object and nothing else — no prose, no "
-        "markdown fences, no commentary. You never generate images; you only "
-        "produce the prompt.\n\n"
+        "Sen Claude & ChatGPT icin Canva Prompt Muhendisisin (Canva Prompt "
+        "Engineer). Your job: turn the Architect's design brief into ONE prompt "
+        "text that works at 100% quality in Canva Magic Media, Canva GPT or "
+        "DALL-E 3. Reply with a single JSON object and nothing else — no prose, "
+        "no markdown fences.\n\n"
         f"{as_prompt_block(load_constitution())}\n\n"
-        "OUTPUT FORMAT — your reply MUST be valid JSON matching exactly this "
-        "shape (keys and nesting), e.g.:\n"
+        "CANVA KNOWLEDGE BASE:\n"
+        f"{kb}\n\n"
+        "Rules:\n"
+        "- prompt_text: one flowing, copy-paste-ready prompt. MUST include "
+        "deliberate empty negative space for overlaid text, and strategically "
+        "place Canva library keywords (e.g. 'flat vector', 'isolated object') "
+        "from the brief. Do NOT put aspect-ratio flags (--ar) inside prompt_text; "
+        "the ratio lives in the aspect_ratio field.\n"
+        "- Honor the brief's aspect_ratio, target_tool, palette, style and "
+        "negative_constraints exactly.\n"
+        "- canva_tip: one short, practical Canva usage tip for this design.\n"
+        "- Output MUST match this shape:\n"
         f"{json.dumps(OUTPUT_FORMAT_EXAMPLE, ensure_ascii=False, indent=2)}\n\n"
-        "Rules for the reply:\n"
-        "- image_prompt: the star deliverable. One or two flowing sentences built "
-        "per the prompt_structure rules (subject -> medium -> composition -> "
-        "lighting -> color/mood -> camera -> quality). Concrete and renderable.\n"
-        "- negative_prompt: what to exclude, seeded from the constitution baseline.\n"
-        "- art_direction: the explicit choices behind the prompt (medium, "
-        "composition, lighting, 3-5 color palette, mood; camera optional).\n"
-        "- aspect_ratio: 'W:H' chosen for the intended use (do NOT put ratio flags "
-        "in image_prompt).\n"
-        "- Respond with raw JSON only."
+        "Respond with raw JSON only."
     )
 
 
@@ -81,20 +82,25 @@ def _extract_json(text: str) -> dict[str, Any]:
 
 
 def generate_prompt(
-    concept: str,
+    brief: dict[str, Any],
     *,
+    concept: str,
     feedback: str | None = None,
     model: str = DEFAULT_MODEL,
     client: anthropic.Anthropic | None = None,
 ) -> dict[str, Any]:
-    """Generate a structured visual prompt for `concept`.
+    """Turn the Architect `brief` into a validated prompt card (Stage 2).
 
-    If `feedback` is provided (from a prior Reviewer rejection), it is
-    appended so the Generator can course-correct on the next attempt.
+    `concept` is the original user request (carried into the card). If
+    `feedback` is provided (from a prior Reviewer rejection), it is appended
+    so the Generator can course-correct on the next attempt.
     """
     client = client or anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
-    user_message = f"Concept: {concept}"
+    user_message = (
+        f"Original concept: {concept}\n\n"
+        f"Architect design brief (JSON):\n{json.dumps(brief, ensure_ascii=False, indent=2)}"
+    )
     if feedback:
         user_message += (
             "\n\nThe previous prompt was rejected by the Reviewer agent. "
@@ -112,9 +118,10 @@ def generate_prompt(
     )
 
     try:
-        draft = _extract_json(raw_text)
+        card = _extract_json(raw_text)
     except json.JSONDecodeError as exc:
         raise PromptValidationError(f"Generator did not return valid JSON: {exc}\nRaw: {raw_text}") from exc
 
-    validate_prompt(draft)
-    return draft
+    card.setdefault("concept", concept)
+    validate_prompt(card)
+    return card
