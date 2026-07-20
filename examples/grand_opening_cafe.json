@@ -1,0 +1,12 @@
+{
+  "theme": "Modern Cafe",
+  "color_palette": ["#4A2E1B", "#F5EFE6", "#D4A373"],
+  "typography": {
+    "headline": "Placeholder: [Cafe Name]",
+    "body_text": "Join us for warm vibes!"
+  },
+  "image_prompts": {
+    "main_visual": "Cinematic shot of a latte with perfect micro-foam art, resting on a wooden table, soft window light, subtle drop shadow."
+  },
+  "layout_instructions": "Place text at the top 40% of the canvas. Keep the bottom 60% for the main visual inside a draggable frame."
+}
