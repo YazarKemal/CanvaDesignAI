@@ -19,6 +19,11 @@
     "enforcement": "This is enforced at the code level (src/schema.py FORBIDDEN_PHRASES), not just via instruction — a card containing any of these phrases anywhere is rejected and regenerated regardless of its Reviewer score."
   },
 
+  "assistant_paste_directive": {
+    "purpose": "src/paste_render.py renders the card as a plain-text block for pasting into a Claude/ChatGPT chat that has a Canva tool connected, so that assistant proceeds without a round of clarifying questions.",
+    "rule": "The directive at the top of that block MUST be a plain, direct, first-person instruction — e.g. 'Using your connected Canva tool, generate this now; do not ask me clarifying questions.' It must NEVER impersonate a system message, use fake authority markers ('SYSTEM:', 'OVERRIDE:', 'ignore previous instructions'), or claim to guarantee tool invocation. Pasted text is always ordinary user content to the receiving assistant — no wording elevates its privilege or forces a tool call outside that assistant's own judgment. This field is generated deterministically by code, not by an LLM, precisely so it can't drift into that pattern."
+  },
+
   "magic_media_prompt": {
     "rule": "Compose magic_media_prompt as a single flowing sentence (or two), ordered: [subject & action] -> [medium/format] -> [composition & framing] -> [lighting] -> [color & mood] -> [technical/camera details] -> [quality tags]. Front-load the subject; diffusion models weight earlier tokens more heavily.",
     "length_guideline": "Aim for 40-80 words: specific enough to be unambiguous, short enough to avoid diluting token weight.",

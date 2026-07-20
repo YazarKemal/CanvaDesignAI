@@ -3,7 +3,15 @@
 import { useState } from "react";
 import type { LogEntry } from "@/lib/types";
 
-function CopyButton({ text }: { text: string }) {
+function CopyButton({
+  text,
+  label = "copy",
+  className = "absolute right-2 top-2",
+}: {
+  text: string;
+  label?: string;
+  className?: string;
+}) {
   const [copied, setCopied] = useState(false);
 
   async function copy() {
@@ -20,9 +28,9 @@ function CopyButton({ text }: { text: string }) {
     <button
       type="button"
       onClick={copy}
-      className="absolute right-2 top-2 select-none border border-zinc-700 px-2 py-0.5 text-xs text-zinc-400 transition-colors hover:bg-white hover:text-black"
+      className={`select-none border border-zinc-700 px-2 py-0.5 text-xs text-zinc-400 transition-colors hover:bg-white hover:text-black ${className}`}
     >
-      {copied ? "copied" : "copy"}
+      {copied ? "copied" : label}
     </button>
   );
 }
@@ -94,6 +102,17 @@ export function ChatPromptCard({ entry }: { entry: LogEntry }) {
           </li>
         ))}
       </ol>
+
+      {/* Paste the whole card + directive into a Canva-connected AI chat */}
+      {entry.pasteText ? (
+        <div className="mt-3">
+          <CopyButton
+            text={entry.pasteText}
+            label="copy for Claude / ChatGPT chat"
+            className="relative w-full py-1.5 text-center"
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

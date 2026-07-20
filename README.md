@@ -82,6 +82,29 @@ Exactly three mandatory components — `magic_media_prompt`,
 Field names map 1:1 onto the `ChatPromptCard` UI component. See
 [`examples/grand_opening_cafe.json`](examples/grand_opening_cafe.json).
 
+## Pasting into a Claude/ChatGPT chat with Canva connected
+
+`src/paste_render.py` renders the card as a plain-text block — a direct,
+first-person instruction ("use your connected Canva tool now, don't ask me
+clarifying questions") followed by the full card — so pasting it into a
+Claude/ChatGPT conversation that has a Canva tool connected maximizes the
+odds that assistant proceeds immediately instead of asking for details.
+
+**What this is not:** there's no way to make pasted text carry system-level
+authority or force a tool call — that's always ordinary user content to the
+receiving assistant, and wording tricks like fake `SYSTEM:`/`OVERRIDE:` tags
+don't change that (and are the classic prompt-injection pattern, which
+production assistants are hardened against). This only writes a clear,
+honest, direct request — the same thing that makes any instruction more
+likely to be followed.
+
+```bash
+python main.py "Grand Opening Cafe" --paste   # prints the paste-ready block
+```
+
+The FastAPI response and the chat UI's card also carry this as `paste_text`,
+with its own "copy for Claude / ChatGPT chat" button.
+
 ## Run
 
 ```bash
@@ -92,7 +115,8 @@ uvicorn api:app --port 8000
 
 # CLI (no server needed)
 python main.py "Grand Opening Cafe"
-python main.py "Grand Opening Cafe" --raw   # just the magic_media_prompt string
+python main.py "Grand Opening Cafe" --raw    # just the magic_media_prompt string
+python main.py "Grand Opening Cafe" --paste  # paste-ready block for a Canva-connected chat
 
 # Frontend (separate terminal)
 cd web && cp .env.example .env.local && npm install && npm run dev
@@ -102,7 +126,7 @@ cd web && cp .env.example .env.local && npm install && npm run dev
 
 ```bash
 pip install -r requirements.txt pytest
-pytest                        # 40 tests, fully offline (mocked DeepSeek/HTTP)
+pytest                        # 45 tests, fully offline (mocked DeepSeek/HTTP)
 
 cd web && npm run typecheck && npm run build
 ```

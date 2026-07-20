@@ -43,6 +43,8 @@ def test_chat_returns_card(monkeypatch):
     assert body["approved"] is True
     assert body["score"] == 9.0
     assert body["card"]["target_tool"] == "Canva Magic Media"
+    assert body["paste_text"].startswith("Instruction:")
+    assert CARD["magic_media_prompt"] in body["paste_text"]
 
 
 def test_chat_rejects_empty_message():

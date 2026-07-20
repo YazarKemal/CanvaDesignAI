@@ -9,6 +9,8 @@ Usage:
     python main.py "Kafe acilisi icin Instagram gonderisi"
     python main.py "Grand Opening Cafe" --max-attempts 5
     python main.py "Grand Opening Cafe" --raw   # print just the Magic Media prompt string
+    python main.py "Grand Opening Cafe" --paste # print a block ready to paste into a
+                                                 # Claude/ChatGPT chat with Canva connected
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ import json
 import sys
 
 from src.orchestrator import DEFAULT_MAX_ATTEMPTS, PipelineError, run_pipeline
+from src.paste_render import render_for_assistant_paste
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -31,6 +34,12 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Print only the magic_media_prompt string (ready to paste into Canva Magic Media / DALL-E 3).",
     )
+    parser.add_argument(
+        "--paste",
+        action="store_true",
+        help="Print a plain-text block (directive + full card) ready to paste into a "
+        "Claude/ChatGPT chat that has a Canva tool connected.",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -41,6 +50,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.raw:
         print(result.card["magic_media_prompt"])
+    elif args.paste:
+        print(render_for_assistant_paste(result.card))
     else:
         print(json.dumps(result.card, ensure_ascii=False, indent=2))
 

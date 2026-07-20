@@ -67,6 +67,7 @@ export default function Home() {
             card: payload.card,
             approved: payload.approved,
             score: payload.score,
+            pasteText: payload.paste_text,
           },
         ]);
       }

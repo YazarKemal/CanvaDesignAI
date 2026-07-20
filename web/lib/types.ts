@@ -29,6 +29,9 @@ export interface ChatResponse {
   approved: boolean;
   score: number;
   attempts: number;
+  // Plain-text block (directive + full card) ready to paste into a
+  // Claude/ChatGPT chat that has a Canva tool connected.
+  paste_text: string;
 }
 
 // One entry in the terminal log: either a rendered card or an error line.
@@ -38,5 +41,6 @@ export interface LogEntry {
   card?: PromptCard;
   approved?: boolean;
   score?: number;
+  pasteText?: string;
   error?: string;
 }
