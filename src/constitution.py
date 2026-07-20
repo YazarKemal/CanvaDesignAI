@@ -1,7 +1,7 @@
-"""Loader for the Art Director Constitution (design_rules.json).
+"""Loader for the CaVDesign Canva Automation Constitution (design_rules.json).
 
-Both agents (Generator and Reviewer) read from the same file so the rules
-they operate under never drift out of sync.
+All three stages (Architect, Generator, Reviewer) read from the same file
+so the rules they operate under never drift out of sync.
 """
 
 from __future__ import annotations
@@ -25,6 +25,7 @@ def as_prompt_block(constitution: dict[str, Any] | None = None) -> str:
     """Render the constitution as a compact instruction block for LLM prompts."""
     rules = constitution or load_constitution()
     return (
-        "ART DIRECTOR CONSTITUTION (must be followed exactly, no exceptions):\n"
+        "CANVA AUTOMATION CONSTITUTION (must be followed exactly, no exceptions. "
+        "Output the card JSON only -- never chat, never ask a question):\n"
         + json.dumps(rules, ensure_ascii=False, indent=2)
     )

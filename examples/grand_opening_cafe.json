@@ -1,15 +1,26 @@
 {
   "concept": "Grand Opening Cafe",
-  "prompt_text": "A minimalist 3d flat vector illustration for a specialty coffee shop grand opening, earthy terracotta and warm cream color palette, top-down view of an espresso cup next to an open notebook, ample negative space at the top for overlaying text in Canva, vintage aesthetic, clean lines, isolated on a plain background.",
+  "magic_media_prompt": "A minimalist 3d flat vector illustration for a specialty coffee shop grand opening, earthy terracotta and warm cream color palette, top-down view of an espresso cup next to an open notebook, ample negative space at the top for overlaying text in Canva, vintage aesthetic, clean lines, isolated on a plain background.",
   "negative_prompt": "embedded text, watermark, logo, cluttered composition, extra fingers, low resolution, jpeg artifacts, harsh oversaturation",
   "aspect_ratio": "1:1 (1080x1080)",
   "target_tool": "Canva Magic Media",
-  "canva_tip": "Paste into Magic Media, then drop your headline into the empty top third.",
-  "art_direction": {
-    "color_palette": ["terracotta", "warm cream", "espresso brown"],
-    "lighting": "soft natural daylight",
-    "mood": "minimalist, vintage, artisanal",
+  "layer_typography_architecture": {
+    "headline": "Grand Opening",
+    "subtext": "Freshly roasted, every morning.",
+    "color_palette": ["#4A2E1B", "#D4A373", "#F5EFE6"],
+    "fonts": {
+      "headline_font": "Montserrat Bold",
+      "body_font": "Playfair Display"
+    },
+    "background_layers": "generated image fills the bottom 60%; solid cream rectangle layer behind the top 40% carries the headline/subtext",
     "magic_media_style": "Flat Vector"
   },
+  "direct_action_tip": [
+    "Open Canva > Apps > Magic Media, paste magic_media_prompt, generate at 1:1 (1080x1080).",
+    "Add a Heading text box in the empty top space and type the headline.",
+    "Add a Subheading text box below it with the subtext.",
+    "Set Text > Font to the headline_font/body_font pairing.",
+    "Recolor the text and any shape accents using the color_palette HEX codes via the color picker."
+  ],
   "canva_keywords": ["flat vector illustration", "isolated element on transparent background"]
 }

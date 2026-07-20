@@ -1,8 +1,9 @@
 """FastAPI backend for CaVDesign — the Canva Prompt Workbench.
 
-Exposes POST /api/chat: given a plain design request, runs the three-stage
-pipeline (DeepSeek Architect -> Claude Generator -> DeepSeek Reviewer) and
-returns a prompt card the Next.js chat UI renders.
+Single-engine architecture: exposes POST /api/chat, which given a plain
+design request runs the three-stage DeepSeek pipeline (Architect ->
+Generator -> Reviewer) and returns a Canva automation card the Next.js
+chat UI renders. Never chats, never asks a question — card only.
 
 Run locally:
     uvicorn api:app --reload --port 8000
@@ -17,6 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from src.orchestrator import DEFAULT_MAX_ATTEMPTS, run_pipeline
+from src.paste_render import render_for_assistant_paste
 
 app = FastAPI(title="CaVDesign API", version="1.0.0")
 
@@ -39,6 +41,7 @@ class ChatResponse(BaseModel):
     approved: bool
     score: float
     attempts: int
+    paste_text: str
 
 
 @app.get("/health")
@@ -58,4 +61,5 @@ def chat(request: ChatRequest) -> ChatResponse:
         approved=result.approved,
         score=result.review.score,
         attempts=result.attempts,
+        paste_text=render_for_assistant_paste(result.card),
     )

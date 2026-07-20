@@ -1,16 +1,24 @@
 """Canva Prompt Workbench orchestration — the three-stage flow.
 
+Single-engine architecture: Architect, Generator and Reviewer all run on
+DeepSeek.
+
     user request
         │
         ▼
     Architect (DeepSeek)  -> technical design brief (Canva expert)
         │
         ▼
-    Generator (Claude)    -> copy-paste-ready prompt card
+    Generator (DeepSeek)  -> Canva automation card (3 mandatory components)
         │
         ▼
     Reviewer (DeepSeek)   -> score; if < pass_threshold, feed feedback back
                              to the Generator and retry (up to max_attempts)
+
+If the Generator's own output fails schema validation or trips the
+code-level forbidden-chat-phrase guard (src/schema.py), that failure is
+treated the same as a low Reviewer score: fed back as feedback and retried,
+rather than crashing the whole pipeline.
 """
 
 from __future__ import annotations
@@ -21,8 +29,13 @@ from typing import Any
 from src.architect import build_brief
 from src.generator import generate_prompt
 from src.reviewer import ReviewResult, review_prompt
+from src.schema import PromptValidationError
 
 DEFAULT_MAX_ATTEMPTS = 3
+
+
+class PipelineError(RuntimeError):
+    """Raised when the Generator could not produce a valid card within max_attempts."""
 
 
 @dataclass
@@ -46,8 +59,9 @@ def run_pipeline(
     """Run Architect -> Generator -> Reviewer for `concept`.
 
     The Architect runs once to fix the brief; the Generator then revises
-    against Reviewer feedback until it passes or `max_attempts` is exhausted.
-    Always returns the best-scoring attempt.
+    against Reviewer feedback (or its own validation failures) until it
+    passes or `max_attempts` is exhausted. Always returns the best-scoring
+    attempt. Raises PipelineError if no attempt ever produced a valid card.
     """
     architect_kwargs = architect_kwargs or {}
     generator_kwargs = generator_kwargs or {}
@@ -61,7 +75,13 @@ def run_pipeline(
     feedback: str | None = None
 
     for attempt in range(1, max_attempts + 1):
-        card = generate_prompt(brief, concept=concept, feedback=feedback, **generator_kwargs)
+        try:
+            card = generate_prompt(brief, concept=concept, feedback=feedback, **generator_kwargs)
+        except PromptValidationError as exc:
+            feedback = str(exc)
+            history.append({"attempt": attempt, "card": None, "score": 0.0, "feedback": feedback})
+            continue
+
         review = review_prompt(card, **reviewer_kwargs)
         history.append({"attempt": attempt, "card": card, "score": review.score, "feedback": review.feedback})
 
@@ -75,7 +95,12 @@ def run_pipeline(
 
         feedback = review.feedback
 
-    assert best_card is not None and best_review is not None
+    if best_card is None or best_review is None:
+        raise PipelineError(
+            f"Generator failed to produce a valid card in {max_attempts} attempts. "
+            f"Last error: {feedback}"
+        )
+
     return PipelineResult(
         card=best_card, brief=brief, review=best_review, attempts=max_attempts, approved=False, history=history
     )
