@@ -1,6 +1,7 @@
 import json
 from types import SimpleNamespace
 
+from src.brand_profiles import load_brand
 from src.reviewer import review_prompt
 
 CARD = {
@@ -62,5 +63,24 @@ def test_review_prompt_embeds_card_and_rubric_in_request():
     review_prompt(CARD, client=client)
     system_msg = client.captured_kwargs["messages"][0]["content"]
     assert "format_discipline" in system_msg
+    assert "brand_fit" in system_msg  # rubric criterion always present
     user_msg = client.captured_kwargs["messages"][1]["content"]
     assert "Grand Opening Cafe" in user_msg
+
+
+def test_review_prompt_embeds_brand_profile_when_active():
+    brand = load_brand("example-cafe")
+    reply = json.dumps({"score": 9.0, "criteria_scores": {"brand_fit": 9}, "feedback": ""})
+    client = _FakeOpenAIClient(reply)
+    review_prompt(CARD, brand=brand, client=client)
+    system_msg = client.captured_kwargs["messages"][0]["content"]
+    assert "BRAND PROFILE" in system_msg
+    assert "example-cafe" in system_msg
+
+
+def test_review_prompt_without_brand_omits_brand_section():
+    reply = json.dumps({"score": 9.0, "criteria_scores": {}, "feedback": ""})
+    client = _FakeOpenAIClient(reply)
+    review_prompt(CARD, client=client)
+    system_msg = client.captured_kwargs["messages"][0]["content"]
+    assert "BRAND PROFILE" not in system_msg

@@ -1,7 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import type { LogEntry, PromptCard, TextZone } from "@/lib/types";
+import {
+  TARGET_FORMAT_ASPECT_RATIOS,
+  TARGET_FORMAT_LABELS,
+  type LogEntry,
+  type PromptCard,
+  type TargetFormat,
+  type TextZone,
+} from "@/lib/types";
 
 function CopyButton({
   text,
@@ -84,7 +91,53 @@ function ContrastLine({ ratio }: { ratio?: number }) {
   );
 }
 
-function CardBody({ card, pasteText, contrastRatio }: { card: PromptCard; pasteText?: string; contrastRatio?: number }) {
+function AdaptButtons({
+  card,
+  onAdapt,
+  adapting,
+}: {
+  card: PromptCard;
+  onAdapt?: (format: TargetFormat) => void;
+  adapting?: boolean;
+}) {
+  if (!onAdapt) return null;
+
+  const otherFormats = (Object.keys(TARGET_FORMAT_LABELS) as TargetFormat[]).filter(
+    (fmt) => TARGET_FORMAT_ASPECT_RATIOS[fmt] !== card.aspect_ratio,
+  );
+  if (otherFormats.length === 0) return null;
+
+  return (
+    <p className="mt-3 text-xs text-zinc-600">
+      adapt to:{" "}
+      {otherFormats.map((fmt) => (
+        <button
+          key={fmt}
+          type="button"
+          disabled={adapting}
+          onClick={() => onAdapt(fmt)}
+          className="ml-1 border border-zinc-700 px-2 py-0.5 text-zinc-400 transition-colors hover:bg-white hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {adapting ? "…" : TARGET_FORMAT_LABELS[fmt]}
+        </button>
+      ))}
+    </p>
+  );
+}
+
+function CardBody({
+  card,
+  pasteText,
+  contrastRatio,
+  onAdapt,
+  adapting,
+}: {
+  card: PromptCard;
+  pasteText?: string;
+  contrastRatio?: number;
+  onAdapt?: (format: TargetFormat) => void;
+  adapting?: boolean;
+}) {
   const layer = card.layer_typography_architecture;
 
   return (
@@ -147,11 +200,22 @@ function CardBody({ card, pasteText, contrastRatio }: { card: PromptCard; pasteT
           />
         </div>
       ) : null}
+
+      {/* Omni-Channel: on-demand adaptation to other formats */}
+      <AdaptButtons card={card} onAdapt={onAdapt} adapting={adapting} />
     </>
   );
 }
 
-export function ChatPromptCard({ entry }: { entry: LogEntry }) {
+export function ChatPromptCard({
+  entry,
+  onAdapt,
+  adapting,
+}: {
+  entry: LogEntry;
+  onAdapt?: (format: TargetFormat) => void;
+  adapting?: boolean;
+}) {
   // Terminal log entry: a left border, flowing top-to-bottom. No bubbles.
   if (entry.error) {
     return (
@@ -176,7 +240,13 @@ export function ChatPromptCard({ entry }: { entry: LogEntry }) {
         <span className="shrink-0 text-xs text-zinc-600">[{status}]</span>
       </div>
 
-      <CardBody card={card} pasteText={entry.pasteText} contrastRatio={entry.contrastRatio} />
+      <CardBody
+        card={card}
+        pasteText={entry.pasteText}
+        contrastRatio={entry.contrastRatio}
+        onAdapt={onAdapt}
+        adapting={adapting}
+      />
     </div>
   );
 }

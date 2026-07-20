@@ -1,6 +1,7 @@
 import pytest
 
 from src import orchestrator
+from src.brand_profiles import BrandNotFoundError, load_brand
 from src.orchestrator import PipelineError
 from src.reviewer import ReviewResult
 from src.schema import PromptValidationError
@@ -110,3 +111,58 @@ def test_pipeline_raises_pipeline_error_when_generator_never_produces_valid_card
 
     with pytest.raises(PipelineError):
         orchestrator.run_pipeline("Grand Opening Cafe", max_attempts=2)
+
+
+def test_pipeline_resolves_brand_slug_and_threads_it_to_every_stage(monkeypatch):
+    expected_brand = load_brand("example-cafe")
+    captured = {}
+
+    def fake_build_brief(concept, *, brand=None, **kw):
+        captured["architect_brand"] = brand
+        return BRIEF
+
+    def fake_generate(brief, concept, *, brand=None, feedback=None, **kw):
+        captured["generator_brand"] = brand
+        return CARD
+
+    def fake_review(card, *, brand=None, **kw):
+        captured["reviewer_brand"] = brand
+        return ReviewResult(score=9.0, passed=True, feedback="")
+
+    monkeypatch.setattr(orchestrator, "build_brief", fake_build_brief)
+    monkeypatch.setattr(orchestrator, "generate_prompt", fake_generate)
+    monkeypatch.setattr(orchestrator, "review_prompt", fake_review)
+
+    orchestrator.run_pipeline("Grand Opening Cafe", brand="example-cafe")
+
+    assert captured["architect_brand"] == expected_brand
+    assert captured["generator_brand"] == expected_brand
+    assert captured["reviewer_brand"] == expected_brand
+
+
+def test_pipeline_unknown_brand_raises_before_any_stage_runs(monkeypatch):
+    def must_not_be_called(*args, **kwargs):
+        raise AssertionError("build_brief should never run for an unknown brand")
+
+    monkeypatch.setattr(orchestrator, "build_brief", must_not_be_called)
+
+    with pytest.raises(BrandNotFoundError):
+        orchestrator.run_pipeline("Grand Opening Cafe", brand="does-not-exist")
+
+
+def test_pipeline_without_brand_passes_none_through(monkeypatch):
+    captured = {}
+
+    def fake_build_brief(concept, *, brand=None, **kw):
+        captured["brand"] = brand
+        return BRIEF
+
+    monkeypatch.setattr(orchestrator, "build_brief", fake_build_brief)
+    monkeypatch.setattr(orchestrator, "generate_prompt", lambda brief, concept, feedback=None, **kw: CARD)
+    monkeypatch.setattr(
+        orchestrator, "review_prompt", lambda card, **kw: ReviewResult(score=9.0, passed=True, feedback="")
+    )
+
+    orchestrator.run_pipeline("Grand Opening Cafe")
+
+    assert captured["brand"] is None

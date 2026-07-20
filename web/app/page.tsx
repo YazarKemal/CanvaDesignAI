@@ -1,16 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { BrandSelect } from "@/components/BrandSelect";
 import { ChatInput } from "@/components/ChatInput";
 import { ChatPromptCard } from "@/components/ChatPromptCard";
-import type { ChatResponse, LogEntry } from "@/lib/types";
+import type { AdaptResponse, ChatResponse, LogEntry, TargetFormat } from "@/lib/types";
 
 const TOOLS = ["canva", "magic media", "dall-e 3", "midjourney"];
 
 export default function Home() {
   const [input, setInput] = useState("");
+  const [brand, setBrand] = useState<string | null>(null);
   const [entries, setEntries] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [adaptingId, setAdaptingId] = useState<number | null>(null);
   const [history, setHistory] = useState<string[]>([]);
   const [historyIdx, setHistoryIdx] = useState<number | null>(null);
   const nextId = useRef(1);
@@ -48,7 +51,7 @@ export default function Home() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: concept }),
+        body: JSON.stringify({ message: concept, brand }),
       });
       const data = await res.json();
 
@@ -76,6 +79,47 @@ export default function Home() {
       setEntries((e) => [...e, { id, concept, error: "network error" }]);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function adaptTo(source: LogEntry, format: TargetFormat) {
+    if (!source.card || adaptingId !== null) return;
+    setAdaptingId(source.id);
+
+    try {
+      const res = await fetch("/api/adapt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ card: source.card, formats: [format], brand }),
+      });
+      const data = await res.json();
+      const id = nextId.current++;
+
+      if (!res.ok) {
+        setEntries((e) => [
+          ...e,
+          { id, concept: `${source.concept} → ${format}`, error: data?.detail ?? `request failed (${res.status})` },
+        ]);
+      } else {
+        const payload = data as AdaptResponse;
+        const variant = payload.variants[format];
+        setEntries((e) => [
+          ...e,
+          {
+            id,
+            concept: `${source.concept} → ${format}`,
+            card: variant,
+            approved: true,
+            score: source.score,
+            sourceFormat: format,
+          },
+        ]);
+      }
+    } catch {
+      const id = nextId.current++;
+      setEntries((e) => [...e, { id, concept: `${source.concept} → ${format}`, error: "network error" }]);
+    } finally {
+      setAdaptingId(null);
     }
   }
 
@@ -109,12 +153,18 @@ export default function Home() {
             onHistoryPrev={historyPrev}
             disabled={loading}
           />
+          <BrandSelect selected={brand} onChange={setBrand} />
         </div>
 
         {/* Terminal log — flows top to bottom, left-bordered entries */}
         <section className="mx-auto mt-10 w-full max-w-2xl space-y-6 pb-10">
           {entries.map((entry) => (
-            <ChatPromptCard key={entry.id} entry={entry} />
+            <ChatPromptCard
+              key={entry.id}
+              entry={entry}
+              onAdapt={(format) => adaptTo(entry, format)}
+              adapting={adaptingId === entry.id}
+            />
           ))}
           {loading && (
             <div className="border-l border-zinc-700 pl-4 text-sm text-zinc-500">

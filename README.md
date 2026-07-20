@@ -1,10 +1,10 @@
-# CaVDesign — Canva Automation Engine
+# CaVDesign — Canva Design Agency Engine
 
-A chat-driven **Canva automation engine**, not a chat assistant. You type a
-plain idea — `"Kafe açılışı için Instagram gönderisi"` — and a single-engine
-DeepSeek pipeline hands back one machine-consumable **Canva card**: no chat,
-no clarifying questions, no prose — just the data needed to build the design
-in Canva as fast as possible.
+A chat-driven **Canva design agency engine**, not a chat assistant. You type
+a plain idea — `"Kafe açılışı için Instagram gönderisi"` — and a
+single-engine DeepSeek pipeline hands back one machine-consumable **Canva
+card**: no chat, no clarifying questions, no prose — just the data needed to
+build the design in Canva as fast as possible.
 
 It's for people who already have Canva Pro or ChatGPT Pro but can't reliably
 get consistent, designer-grade results out of them. **Cards only** — this
@@ -106,6 +106,39 @@ disagree. `color_palette` must contain a pair with a WCAG contrast ratio
 ASCII wireframe of `text_zone` and a plain-text contrast readout. See
 [`examples/grand_opening_cafe.json`](examples/grand_opening_cafe.json).
 
+## Design Agency: Brand Profiles, Critic, Omni-Channel
+
+**Brand Profiles** (`config/brands/<slug>.json`, loaded by
+`src/brand_profiles.py`) lock a design to one brand's exact signature fonts
+and approved colors instead of the generic Art Director defaults. Pass
+`--brand <slug>` (CLI) or `brand` (API/UI); every stage — Architect,
+Generator, Reviewer — is constrained to that profile, and `src/schema.py`
+**hard-rejects** (retried, same as contrast/text_zone) a card using the
+wrong font or an unapproved color. See
+[`config/brands/example-cafe.json`](config/brands/example-cafe.json).
+
+**Critic = the existing Reviewer, extended — not a new stage.** Rather than
+add a separate fourth LLM call, `design_rules.json`'s rubric gained a
+`brand_fit` criterion that the same Reviewer call already scores (zero
+extra latency/cost); the factual parts of brand compliance (exact font/color
+match) are enforced deterministically in code, so the LLM only judges what's
+genuinely subjective — does it *feel* on-brand.
+
+**Omni-Channel** (`src/omni_channel.py`) adapts an *already-approved* card to
+other formats (`instagram_post`, `instagram_story`, `banner`) on demand — not
+automatically, and not by re-running the full pipeline. One small "Adapter"
+DeepSeek call holds the concept/headline/subtext/palette/fonts fixed and
+only re-derives `text_zone`, `magic_media_prompt`'s composition,
+`background_layers`, and `direct_action_tip` for the new aspect ratio; the
+result passes through the same `validate_prompt` as everything else. In the
+UI, each card gets `[ story ] [ post ] [ banner ]` buttons that append the
+adapted variant as a new terminal-log entry.
+
+```bash
+python main.py "Grand Opening Cafe" --brand example-cafe
+python main.py "Grand Opening Cafe" --adapt-to instagram_story,banner
+```
+
 ## Pasting into a Claude/ChatGPT chat with Canva connected
 
 `src/paste_render.py` renders the card as a plain-text block — a direct,
@@ -150,7 +183,7 @@ cd web && cp .env.example .env.local && npm install && npm run dev
 
 ```bash
 pip install -r requirements.txt pytest
-pytest                        # 69 tests, fully offline (mocked DeepSeek/HTTP)
+pytest                        # 106 tests, fully offline (mocked DeepSeek/HTTP)
 
 cd web && npm run typecheck && npm run build
 ```

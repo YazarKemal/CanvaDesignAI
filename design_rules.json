@@ -113,12 +113,13 @@
 
   "review_rubric": {
     "criteria": [
-      { "id": "concept_fidelity", "weight": 0.15, "question": "Does the card faithfully and vividly capture the user's original concept?" },
-      { "id": "magic_media_prompt_quality", "weight": 0.2, "question": "Is magic_media_prompt concrete, renderable, and correctly ordered (subject->medium->composition->lighting->color->camera->quality) with no vague abstractions?" },
-      { "id": "layer_typography_architecture_quality", "weight": 0.2, "question": "Are headline/subtext sharp and short, is color_palette valid coherent HEX with a real contrast anchor, and is the font pairing + size hierarchy + background layer distribution sound?" },
-      { "id": "direct_action_tip_quality", "weight": 0.15, "question": "Are the action steps concrete, ordered, and literally clickable in Canva (not generic advice)?" },
-      { "id": "canva_fit", "weight": 0.15, "question": "Does the prompt use Canva-friendly library keywords, reserve deliberate negative space exactly at text_zone, and does the subject's visual weight avoid competing with the text_zone?" },
-      { "id": "format_discipline", "weight": 0.15, "question": "Is the output 100% free of chat/question language, greetings, or meta-commentary — pure Canva automation data?" }
+      { "id": "concept_fidelity", "weight": 0.12, "question": "Does the card faithfully and vividly capture the user's original concept?" },
+      { "id": "magic_media_prompt_quality", "weight": 0.18, "question": "Is magic_media_prompt concrete, renderable, and correctly ordered (subject->medium->composition->lighting->color->camera->quality) with no vague abstractions?" },
+      { "id": "layer_typography_architecture_quality", "weight": 0.18, "question": "Are headline/subtext sharp and short, is color_palette valid coherent HEX with a real contrast anchor, and is the font pairing + size hierarchy + background layer distribution sound?" },
+      { "id": "direct_action_tip_quality", "weight": 0.13, "question": "Are the action steps concrete, ordered, and literally clickable in Canva (not generic advice)?" },
+      { "id": "canva_fit", "weight": 0.14, "question": "Does the prompt use Canva-friendly library keywords, reserve deliberate negative space exactly at text_zone, and does the subject's visual weight avoid competing with the text_zone?" },
+      { "id": "format_discipline", "weight": 0.15, "question": "Is the output 100% free of chat/question language, greetings, or meta-commentary — pure Canva automation data?" },
+      { "id": "brand_fit", "weight": 0.1, "question": "If a brand profile is active: does the design feel authentically on-brand (voice, mood, and the exact fonts/colors) beyond the bare minimum compliance? Score 10 if no brand profile is active — never penalize brand-less requests." }
     ],
     "pass_threshold": 8.5,
     "scale": "0-10 per criterion, weighted average determines final score. Any detected forbidden_chat_phrase caps format_discipline at 0 regardless of other scoring."

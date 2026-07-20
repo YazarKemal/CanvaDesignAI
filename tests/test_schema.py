@@ -3,9 +3,16 @@ from pathlib import Path
 
 import pytest
 
-from src.schema import PromptValidationError, find_forbidden_phrase, validate_prompt
+from src.brand_profiles import load_brand
+from src.schema import (
+    PromptValidationError,
+    find_forbidden_phrase,
+    validate_brand_compliance,
+    validate_prompt,
+)
 
 EXAMPLE_PATH = Path(__file__).resolve().parent.parent / "examples" / "grand_opening_cafe.json"
+EXAMPLE_BRAND = "example-cafe"
 
 
 def _load_example() -> dict:
@@ -155,3 +162,54 @@ def test_forbidden_phrase_detected_inside_list_field():
     card["direct_action_tip"].append("Here is another tip for you.")
     with pytest.raises(PromptValidationError):
         validate_prompt(card)
+
+
+# --- brand compliance (Design Agency) ---
+
+def test_example_card_matches_example_brand_exactly():
+    # The repo's example card happens to already use example-cafe's exact
+    # signature fonts and only approved colors -- validate_prompt(brand=...)
+    # should accept it with zero changes.
+    brand = load_brand(EXAMPLE_BRAND)
+    validate_prompt(_load_example(), brand=brand)  # should not raise
+
+
+def test_wrong_headline_font_rejected():
+    brand = load_brand(EXAMPLE_BRAND)
+    card = _load_example()
+    card["layer_typography_architecture"]["fonts"]["headline_font"] = "Poppins SemiBold"
+    with pytest.raises(PromptValidationError, match="headline_font"):
+        validate_brand_compliance(card, brand)
+    with pytest.raises(PromptValidationError):
+        validate_prompt(card, brand=brand)
+
+
+def test_wrong_body_font_rejected():
+    brand = load_brand(EXAMPLE_BRAND)
+    card = _load_example()
+    card["layer_typography_architecture"]["fonts"]["body_font"] = "Lato Regular"
+    with pytest.raises(PromptValidationError, match="body_font"):
+        validate_brand_compliance(card, brand)
+
+
+def test_unapproved_color_rejected():
+    brand = load_brand(EXAMPLE_BRAND)
+    card = _load_example()
+    card["layer_typography_architecture"]["color_palette"] = ["#4A2E1B", "#D4A373", "#123456"]
+    with pytest.raises(PromptValidationError, match="approved colors"):
+        validate_brand_compliance(card, brand)
+
+
+def test_approved_color_case_insensitive():
+    brand = load_brand(EXAMPLE_BRAND)
+    card = _load_example()
+    card["layer_typography_architecture"]["color_palette"] = ["#4a2e1b", "#d4a373", "#f5efe6"]
+    validate_brand_compliance(card, brand)  # should not raise (case-insensitive)
+
+
+def test_no_brand_means_no_brand_checks():
+    # Without a brand, an off-brand font/color combo is perfectly valid --
+    # brand compliance is opt-in.
+    card = _load_example()
+    card["layer_typography_architecture"]["fonts"]["headline_font"] = "Anton"
+    validate_prompt(card)  # should not raise

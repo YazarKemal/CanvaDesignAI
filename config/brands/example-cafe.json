@@ -1,0 +1,18 @@
+{
+  "slug": "example-cafe",
+  "name": "Example Cafe",
+  "signature_fonts": {
+    "headline_font": "Montserrat Bold",
+    "body_font": "Playfair Display"
+  },
+  "approved_colors": {
+    "primary": ["#4A2E1B"],
+    "secondary": ["#D4A373"],
+    "accent": ["#F5EFE6", "#8B5E34"]
+  },
+  "logo": {
+    "placement_zone": "bottom-right",
+    "clear_space_ratio": 0.08
+  },
+  "voice": "warm, artisanal, community-first"
+}

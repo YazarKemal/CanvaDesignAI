@@ -4,6 +4,14 @@ Canva Automation Constitution.
 Single-engine architecture: DeepSeek runs Architect, Generator and Reviewer.
 It is fast and cheap enough to run on every Generator attempt without
 materially affecting cost/latency.
+
+This is also the "Critic" of the design-agency architecture — rather than
+adding a separate fourth LLM stage, the existing rubric gained a
+`brand_fit` criterion (design_rules.json) that this same call scores when
+a brand profile is active. Factual brand compliance (exact font/color
+match) is enforced deterministically in src/schema.py; only the
+genuinely subjective judgment (does it *feel* on-brand) is left to the
+LLM, in the call that already runs on every attempt.
 """
 
 from __future__ import annotations
@@ -18,6 +26,7 @@ try:
 except ImportError:
     OpenAI = None  # type: ignore[assignment]
 
+from src.brand_profiles import as_prompt_block as brand_prompt_block
 from src.constitution import as_prompt_block, load_constitution
 from src.llm_json import extract_json
 
@@ -43,17 +52,21 @@ class ReviewResult:
         )
 
 
-def _system_prompt(pass_threshold: float, criteria: list[dict[str, Any]]) -> str:
+def _system_prompt(
+    pass_threshold: float, criteria: list[dict[str, Any]], brand: dict[str, Any] | None = None
+) -> str:
     criteria_desc = "\n".join(
         f"- {c['id']} (weight {c['weight']}): {c['question']}" for c in criteria
     )
+    brand_section = f"\n\n{brand_prompt_block(brand)}" if brand is not None else ""
     return (
         "You are the Reviewer agent inside CaVDesign — a strict but fair Canva "
-        "automation QA reviewer. You are given the Canva Automation "
-        "Constitution and a Canva card (JSON). Score the card against this "
-        "rubric, on a 0-10 scale per criterion:\n"
+        "automation QA reviewer (the Critic of this design agency). You are "
+        "given the Canva Automation Constitution and a Canva card (JSON). "
+        "Score the card against this rubric, on a 0-10 scale per criterion:\n"
         f"{criteria_desc}\n\n"
-        f"{as_prompt_block(load_constitution())}\n\n"
+        f"{as_prompt_block(load_constitution())}"
+        f"{brand_section}\n\n"
         "Compute the weighted average as the overall `score` (0-10). A card "
         f"passes if score >= {pass_threshold}. If the card contains ANY "
         "conversational/chat language (greetings, questions back to the user, "
@@ -73,10 +86,15 @@ def _system_prompt(pass_threshold: float, criteria: list[dict[str, Any]]) -> str
 def review_prompt(
     card: dict[str, Any],
     *,
+    brand: dict[str, Any] | None = None,
     model: str = DEFAULT_MODEL,
     client: OpenAI | None = None,
 ) -> ReviewResult:
-    """Score a Canva card. Returns a ReviewResult with pass/fail + feedback."""
+    """Score a Canva card. Returns a ReviewResult with pass/fail + feedback.
+
+    If `brand` is given, its profile is embedded so the rubric's brand_fit
+    criterion is judged against real constraints rather than guesswork.
+    """
     constitution = load_constitution()
     rubric = constitution["review_rubric"]
     pass_threshold = float(rubric["pass_threshold"])
@@ -94,7 +112,7 @@ def review_prompt(
     response = client.chat.completions.create(
         model=model,
         messages=[
-            {"role": "system", "content": _system_prompt(pass_threshold, rubric["criteria"])},
+            {"role": "system", "content": _system_prompt(pass_threshold, rubric["criteria"], brand)},
             {"role": "user", "content": f"Canva card to review:\n{json.dumps(card, ensure_ascii=False, indent=2)}"},
         ],
         temperature=0,

@@ -35,7 +35,7 @@ def test_health():
 
 
 def test_chat_returns_card(monkeypatch):
-    monkeypatch.setattr(api, "run_pipeline", lambda message, max_attempts=3: _fake_result())
+    monkeypatch.setattr(api, "run_pipeline", lambda message, brand=None, max_attempts=3: _fake_result())
 
     resp = client.post("/api/chat", json={"message": "Kafe acilisi icin Instagram gonderisi"})
 
@@ -56,7 +56,7 @@ def test_chat_rejects_empty_message():
 
 
 def test_chat_surfaces_pipeline_error_as_502(monkeypatch):
-    def boom(message, max_attempts=3):
+    def boom(message, brand=None, max_attempts=3):
         raise RuntimeError("deepseek down")
 
     monkeypatch.setattr(api, "run_pipeline", boom)
@@ -68,10 +68,70 @@ def test_chat_surfaces_pipeline_error_as_502(monkeypatch):
 def test_chat_surfaces_validation_exhaustion_as_502(monkeypatch):
     from src.orchestrator import PipelineError
 
-    def boom(message, max_attempts=3):
+    def boom(message, brand=None, max_attempts=3):
         raise PipelineError("Generator failed to produce a valid card in 3 attempts.")
 
     monkeypatch.setattr(api, "run_pipeline", boom)
     resp = client.post("/api/chat", json={"message": "a poster"})
     assert resp.status_code == 502
     assert "Generator failed" in resp.json()["detail"]
+
+
+def test_chat_unknown_brand_returns_404(monkeypatch):
+    from src.brand_profiles import BrandNotFoundError
+
+    def boom(message, brand=None, max_attempts=3):
+        raise BrandNotFoundError(f"No brand profile named '{brand}'.")
+
+    monkeypatch.setattr(api, "run_pipeline", boom)
+    resp = client.post("/api/chat", json={"message": "a poster", "brand": "does-not-exist"})
+    assert resp.status_code == 404
+
+
+def test_get_brands_lists_example_brand():
+    resp = client.get("/api/brands")
+    assert resp.status_code == 200
+    slugs = [b["slug"] for b in resp.json()["brands"]]
+    assert "example-cafe" in slugs
+
+
+def test_adapt_returns_variants(monkeypatch):
+    def fake_set(base_card, formats, *, brand=None, **kw):
+        return {fmt: {**base_card, "aspect_ratio": fmt} for fmt in formats}
+
+    monkeypatch.setattr(api, "generate_omni_channel_set", fake_set)
+
+    resp = client.post("/api/adapt", json={"card": CARD, "formats": ["instagram_story", "banner"]})
+
+    assert resp.status_code == 200
+    variants = resp.json()["variants"]
+    assert set(variants) == {"instagram_story", "banner"}
+
+
+def test_adapt_unknown_format_returns_400(monkeypatch):
+    from src.omni_channel import UnknownFormatError
+
+    def boom(base_card, formats, *, brand=None, **kw):
+        raise UnknownFormatError("Unknown target format 'nope'.")
+
+    monkeypatch.setattr(api, "generate_omni_channel_set", boom)
+    resp = client.post("/api/adapt", json={"card": CARD, "formats": ["nope"]})
+    assert resp.status_code == 400
+
+
+def test_adapt_unknown_brand_returns_404():
+    resp = client.post(
+        "/api/adapt", json={"card": CARD, "formats": ["banner"], "brand": "does-not-exist"}
+    )
+    assert resp.status_code == 404
+
+
+def test_adapt_validation_failure_returns_502(monkeypatch):
+    from src.schema import PromptValidationError
+
+    def boom(base_card, formats, *, brand=None, **kw):
+        raise PromptValidationError("Adaptation never passed validation.")
+
+    monkeypatch.setattr(api, "generate_omni_channel_set", boom)
+    resp = client.post("/api/adapt", json={"card": CARD, "formats": ["banner"]})
+    assert resp.status_code == 502

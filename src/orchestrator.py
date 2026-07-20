@@ -3,7 +3,7 @@
 Single-engine architecture: Architect, Generator and Reviewer all run on
 DeepSeek.
 
-    user request
+    user request (+ optional brand slug)
         │
         ▼
     Architect (DeepSeek)  -> technical design brief (Canva expert)
@@ -15,10 +15,20 @@ DeepSeek.
     Reviewer (DeepSeek)   -> score; if < pass_threshold, feed feedback back
                              to the Generator and retry (up to max_attempts)
 
-If the Generator's own output fails schema validation or trips the
-code-level forbidden-chat-phrase guard (src/schema.py), that failure is
-treated the same as a low Reviewer score: fed back as feedback and retried,
-rather than crashing the whole pipeline.
+If the Generator's own output fails schema validation, trips the
+code-level forbidden-chat-phrase guard, or (when a brand is active)
+violates the brand's fonts/colors (src/schema.py), that failure is treated
+the same as a low Reviewer score: fed back as feedback and retried, rather
+than crashing the whole pipeline.
+
+When `brand` is given, it is resolved once via `src.brand_profiles.load_brand`
+and threaded into every stage: the Architect constrains the brief's palette
+and text_zone to the brand, the Generator is required to use the brand's
+exact fonts/colors, and the Reviewer scores brand_fit against the same
+profile. There is no separate "Critic" stage — the Reviewer already fills
+that role; brand compliance is scored by the same call, and the factual
+parts (exact font/color match) are enforced deterministically in
+src/schema.py, not left to LLM judgment.
 """
 
 from __future__ import annotations
@@ -27,6 +37,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from src.architect import build_brief
+from src.brand_profiles import load_brand
 from src.generator import generate_prompt
 from src.reviewer import ReviewResult, review_prompt
 from src.schema import PromptValidationError
@@ -51,12 +62,17 @@ class PipelineResult:
 def run_pipeline(
     concept: str,
     *,
+    brand: str | None = None,
     max_attempts: int = DEFAULT_MAX_ATTEMPTS,
     architect_kwargs: dict[str, Any] | None = None,
     generator_kwargs: dict[str, Any] | None = None,
     reviewer_kwargs: dict[str, Any] | None = None,
 ) -> PipelineResult:
     """Run Architect -> Generator -> Reviewer for `concept`.
+
+    `brand` is a brand profile slug (config/brands/<slug>.json). When
+    given, every stage is constrained to that brand's fonts/colors; when
+    omitted, behavior is unchanged from the generic engine.
 
     The Architect runs once to fix the brief; the Generator then revises
     against Reviewer feedback (or its own validation failures) until it
@@ -67,7 +83,9 @@ def run_pipeline(
     generator_kwargs = generator_kwargs or {}
     reviewer_kwargs = reviewer_kwargs or {}
 
-    brief = build_brief(concept, **architect_kwargs)
+    brand_profile = load_brand(brand) if brand else None
+
+    brief = build_brief(concept, brand=brand_profile, **architect_kwargs)
 
     history: list[dict[str, Any]] = []
     best_card: dict[str, Any] | None = None
@@ -76,13 +94,15 @@ def run_pipeline(
 
     for attempt in range(1, max_attempts + 1):
         try:
-            card = generate_prompt(brief, concept=concept, feedback=feedback, **generator_kwargs)
+            card = generate_prompt(
+                brief, concept=concept, brand=brand_profile, feedback=feedback, **generator_kwargs
+            )
         except PromptValidationError as exc:
             feedback = str(exc)
             history.append({"attempt": attempt, "card": None, "score": 0.0, "feedback": feedback})
             continue
 
-        review = review_prompt(card, **reviewer_kwargs)
+        review = review_prompt(card, brand=brand_profile, **reviewer_kwargs)
         history.append({"attempt": attempt, "card": card, "score": review.score, "feedback": review.feedback})
 
         if best_review is None or review.score > best_review.score:

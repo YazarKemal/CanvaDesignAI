@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from src.brand_profiles import load_brand
 from src.generator import generate_prompt
 from src.schema import PromptValidationError
 
@@ -125,3 +126,31 @@ def test_generator_module_has_no_anthropic_import():
     import src.generator as generator_module
 
     assert not hasattr(generator_module, "anthropic")
+
+
+def test_generate_prompt_embeds_brand_profile_in_system_prompt():
+    brand = load_brand("example-cafe")
+    client = _FakeOpenAIClient(json.dumps(VALID_CARD))  # VALID_CARD already matches this brand
+    generate_prompt(BRIEF, concept="Grand Opening Cafe", brand=brand, client=client)
+    system_msg = client.captured_kwargs["messages"][0]["content"]
+    assert "BRAND PROFILE" in system_msg
+    assert "example-cafe" in system_msg
+
+
+def test_generate_prompt_rejects_off_brand_font_when_brand_active():
+    brand = load_brand("example-cafe")
+    off_brand_card = json.loads(json.dumps(VALID_CARD))
+    off_brand_card["layer_typography_architecture"]["fonts"]["headline_font"] = "Anton"
+    client = _FakeOpenAIClient(json.dumps(off_brand_card))
+
+    with pytest.raises(PromptValidationError, match="headline_font"):
+        generate_prompt(BRIEF, concept="Grand Opening Cafe", brand=brand, client=client)
+
+
+def test_generate_prompt_without_brand_ignores_font_choice():
+    off_brand_card = json.loads(json.dumps(VALID_CARD))
+    off_brand_card["layer_typography_architecture"]["fonts"]["headline_font"] = "Anton"
+    client = _FakeOpenAIClient(json.dumps(off_brand_card))
+
+    card = generate_prompt(BRIEF, concept="Grand Opening Cafe", client=client)  # no brand
+    assert card["layer_typography_architecture"]["fonts"]["headline_font"] == "Anton"
