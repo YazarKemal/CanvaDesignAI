@@ -81,6 +81,12 @@ export interface BrandsResponse {
   brands: Brand[];
 }
 
+export interface AdaptVariant {
+  card: PromptCard;
+  paste_text: string;
+  contrast_ratio: number;
+}
+
 export interface AdaptResponse {
-  variants: Record<string, PromptCard>;
+  variants: Record<string, AdaptVariant>;
 }

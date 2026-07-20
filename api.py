@@ -74,8 +74,14 @@ class AdaptRequest(BaseModel):
     brand: str | None = None
 
 
+class AdaptVariant(BaseModel):
+    card: dict[str, Any]
+    paste_text: str
+    contrast_ratio: float
+
+
 class AdaptResponse(BaseModel):
-    variants: dict[str, dict[str, Any]]
+    variants: dict[str, AdaptVariant]
 
 
 # ---------------------------------------------------------------------------
@@ -168,4 +174,13 @@ def adapt(request: AdaptRequest) -> AdaptResponse:
     except PromptValidationError as exc:
         raise HTTPException(status_code=502, detail=f"Adaptation failed: {exc}") from exc
 
-    return AdaptResponse(variants=variants)
+    response_variants = {}
+    for fmt, variant_card in variants.items():
+        _a, _b, ratio = best_contrast_pair(variant_card["layer_typography_architecture"]["color_palette"])
+        response_variants[fmt] = AdaptVariant(
+            card=variant_card,
+            paste_text=render_for_assistant_paste(variant_card),
+            contrast_ratio=round(ratio, 1),
+        )
+
+    return AdaptResponse(variants=response_variants)
