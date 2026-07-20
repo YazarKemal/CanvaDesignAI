@@ -1,39 +1,46 @@
 from src import orchestrator
 from src.reviewer import ReviewResult
 
-DRAFT = {
-    "theme": "Modern Cafe",
-    "color_palette": ["#4A2E1B", "#F5EFE6", "#D4A373"],
-    "typography": {"headline": "Montserrat Bold", "body_text": "Join us!"},
-    "image_prompts": {"main_visual": "A latte with micro-foam art."},
-    "layout_instructions": "Top 40% text, bottom 60% visual.",
+BRIEF = {"aspect_ratio": "1:1 (1080x1080)", "target_tool": "Canva Magic Media"}
+
+CARD = {
+    "concept": "Grand Opening Cafe",
+    "prompt_text": "A minimalist flat vector espresso cup, terracotta palette, negative space at top.",
+    "negative_prompt": "embedded text, watermark",
+    "aspect_ratio": "1:1 (1080x1080)",
+    "target_tool": "Canva Magic Media",
+    "canva_tip": "Add your headline up top.",
+    "art_direction": {"color_palette": ["terracotta", "cream", "espresso"], "lighting": "daylight", "mood": "minimalist"},
 }
 
 
+def _patch_stages(monkeypatch, review_fn):
+    monkeypatch.setattr(orchestrator, "build_brief", lambda concept, **kw: BRIEF)
+    monkeypatch.setattr(orchestrator, "generate_prompt", lambda brief, concept, feedback=None, **kw: CARD)
+    monkeypatch.setattr(orchestrator, "review_prompt", review_fn)
+
+
 def test_pipeline_passes_on_first_attempt(monkeypatch):
-    monkeypatch.setattr(orchestrator, "generate_design", lambda concept, feedback=None, **kw: DRAFT)
-    monkeypatch.setattr(
-        orchestrator, "review_design", lambda draft, **kw: ReviewResult(score=9.0, passed=True, feedback="")
-    )
+    _patch_stages(monkeypatch, lambda card, **kw: ReviewResult(score=9.0, passed=True, feedback=""))
 
     result = orchestrator.run_pipeline("Grand Opening Cafe")
 
     assert result.approved is True
     assert result.attempts == 1
-    assert result.design == DRAFT
+    assert result.card == CARD
+    assert result.brief == BRIEF
 
 
 def test_pipeline_retries_then_passes(monkeypatch):
     calls = {"n": 0}
 
-    def fake_review(draft, **kw):
+    def fake_review(card, **kw):
         calls["n"] += 1
         if calls["n"] == 1:
-            return ReviewResult(score=4.0, passed=False, feedback="Fix contrast.")
-        return ReviewResult(score=8.5, passed=True, feedback="")
+            return ReviewResult(score=7.0, passed=False, feedback="Reserve more negative space.")
+        return ReviewResult(score=9.0, passed=True, feedback="")
 
-    monkeypatch.setattr(orchestrator, "generate_design", lambda concept, feedback=None, **kw: DRAFT)
-    monkeypatch.setattr(orchestrator, "review_design", fake_review)
+    _patch_stages(monkeypatch, fake_review)
 
     result = orchestrator.run_pipeline("Grand Opening Cafe", max_attempts=3)
 
@@ -43,10 +50,7 @@ def test_pipeline_retries_then_passes(monkeypatch):
 
 
 def test_pipeline_exhausts_attempts_returns_best_effort(monkeypatch):
-    monkeypatch.setattr(orchestrator, "generate_design", lambda concept, feedback=None, **kw: DRAFT)
-    monkeypatch.setattr(
-        orchestrator, "review_design", lambda draft, **kw: ReviewResult(score=3.0, passed=False, feedback="Bad.")
-    )
+    _patch_stages(monkeypatch, lambda card, **kw: ReviewResult(score=6.0, passed=False, feedback="Too generic."))
 
     result = orchestrator.run_pipeline("Grand Opening Cafe", max_attempts=2)
 

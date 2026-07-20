@@ -1,4 +1,4 @@
-"""Loader for the Design Constitution (design_rules.json).
+"""Loader for the Art Director Constitution (design_rules.json).
 
 Both agents (Generator and Reviewer) read from the same file so the rules
 they operate under never drift out of sync.
@@ -25,6 +25,6 @@ def as_prompt_block(constitution: dict[str, Any] | None = None) -> str:
     """Render the constitution as a compact instruction block for LLM prompts."""
     rules = constitution or load_constitution()
     return (
-        "DESIGN CONSTITUTION (must be followed exactly, no exceptions):\n"
+        "ART DIRECTOR CONSTITUTION (must be followed exactly, no exceptions):\n"
         + json.dumps(rules, ensure_ascii=False, indent=2)
     )

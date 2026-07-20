@@ -1,7 +1,9 @@
-"""Generator agent: turns a concept into a structured design draft.
+"""Generator agent (Stage 2): Claude as the Canva prompt engineer.
 
-Uses Claude (Anthropic API) with the Design Constitution embedded as a
-system prompt, and forces the reply into the DESIGN_OUTPUT_SCHEMA shape.
+Takes the Architect's technical design brief and turns it into a single
+copy-paste-ready image prompt (for Canva Magic Media / DALL-E 3 / Canva
+GPT), formatted as the prompt card the UI renders. It never generates
+images — only the prompt.
 """
 
 from __future__ import annotations
@@ -12,49 +14,61 @@ from typing import Any
 
 import anthropic
 
+from src.canva_rules import CANVA_KNOWLEDGE_BASE
 from src.constitution import as_prompt_block, load_constitution
-from src.schema import DesignValidationError, validate_design
+from src.schema import PromptValidationError, validate_prompt
 
 DEFAULT_MODEL = "claude-sonnet-5"
 
 OUTPUT_FORMAT_EXAMPLE = {
-    "theme": "Modern Cafe",
-    "color_palette": ["#4A2E1B", "#F5EFE6", "#D4A373"],
-    "typography": {
-        "headline": "Placeholder: [Cafe Name]",
-        "body_text": "Join us for warm vibes!",
-    },
-    "image_prompts": {
-        "main_visual": (
-            "Cinematic shot of a latte with perfect micro-foam art, resting on a "
-            "wooden table, soft window light, subtle drop shadow."
-        )
-    },
-    "layout_instructions": (
-        "Place text at the top 40% of the canvas. Keep the bottom 60% for the "
-        "main visual inside a draggable frame."
+    "concept": "Grand Opening Cafe",
+    "prompt_text": (
+        "A minimalist 3d flat vector illustration for a specialty coffee shop grand "
+        "opening, earthy terracotta and warm cream color palette, top-down view of an "
+        "espresso cup next to an open notebook, ample negative space at the top for "
+        "overlaying text in Canva, vintage aesthetic, clean lines, isolated on a plain "
+        "background."
     ),
+    "negative_prompt": (
+        "embedded text, watermark, logo, cluttered composition, extra fingers, "
+        "low resolution, jpeg artifacts, harsh oversaturation"
+    ),
+    "aspect_ratio": "1:1 (1080x1080)",
+    "target_tool": "Canva Magic Media",
+    "canva_tip": "Paste into Magic Media, then drop your headline into the empty top third.",
+    "art_direction": {
+        "color_palette": ["terracotta", "warm cream", "espresso brown"],
+        "lighting": "soft natural daylight",
+        "mood": "minimalist, vintage, artisanal",
+        "magic_media_style": "Flat Vector",
+    },
+    "canva_keywords": ["flat vector illustration", "isolated element on transparent background"],
 }
 
 
 def _system_prompt() -> str:
+    kb = json.dumps(CANVA_KNOWLEDGE_BASE, ensure_ascii=False, indent=2)
     return (
-        "You are the Generator agent inside CanvaDesignAI. Given a short design "
-        "concept, you produce ONE design draft as a single JSON object and "
-        "nothing else — no prose, no markdown fences, no commentary.\n\n"
+        "Sen Claude & ChatGPT icin Canva Prompt Muhendisisin (Canva Prompt "
+        "Engineer). Your job: turn the Architect's design brief into ONE prompt "
+        "text that works at 100% quality in Canva Magic Media, Canva GPT or "
+        "DALL-E 3. Reply with a single JSON object and nothing else — no prose, "
+        "no markdown fences.\n\n"
         f"{as_prompt_block(load_constitution())}\n\n"
-        "OUTPUT FORMAT — your reply MUST be valid JSON matching exactly this "
-        "shape (keys and nesting), e.g.:\n"
+        "CANVA KNOWLEDGE BASE:\n"
+        f"{kb}\n\n"
+        "Rules:\n"
+        "- prompt_text: one flowing, copy-paste-ready prompt. MUST include "
+        "deliberate empty negative space for overlaid text, and strategically "
+        "place Canva library keywords (e.g. 'flat vector', 'isolated object') "
+        "from the brief. Do NOT put aspect-ratio flags (--ar) inside prompt_text; "
+        "the ratio lives in the aspect_ratio field.\n"
+        "- Honor the brief's aspect_ratio, target_tool, palette, style and "
+        "negative_constraints exactly.\n"
+        "- canva_tip: one short, practical Canva usage tip for this design.\n"
+        "- Output MUST match this shape:\n"
         f"{json.dumps(OUTPUT_FORMAT_EXAMPLE, ensure_ascii=False, indent=2)}\n\n"
-        "Rules for the reply:\n"
-        "- color_palette: 3-5 hex colors (e.g. \"#4A2E1B\"), chosen per the "
-        "color_theory rules in the constitution.\n"
-        "- typography.headline / typography.body_text: pick ONE approved_pairing "
-        "from the constitution and describe it plus give placeholder copy.\n"
-        "- image_prompts.main_visual: a single vivid, camera-ready prompt string.\n"
-        "- layout_instructions: concrete placement instructions honoring the "
-        "white_space and layout rules.\n"
-        "- Respond with raw JSON only."
+        "Respond with raw JSON only."
     )
 
 
@@ -67,24 +81,29 @@ def _extract_json(text: str) -> dict[str, Any]:
     return json.loads(text.strip())
 
 
-def generate_design(
-    concept: str,
+def generate_prompt(
+    brief: dict[str, Any],
     *,
+    concept: str,
     feedback: str | None = None,
     model: str = DEFAULT_MODEL,
     client: anthropic.Anthropic | None = None,
 ) -> dict[str, Any]:
-    """Generate a structured design draft for `concept`.
+    """Turn the Architect `brief` into a validated prompt card (Stage 2).
 
-    If `feedback` is provided (from a prior Reviewer rejection), it is
-    appended so the Generator can course-correct on the next attempt.
+    `concept` is the original user request (carried into the card). If
+    `feedback` is provided (from a prior Reviewer rejection), it is appended
+    so the Generator can course-correct on the next attempt.
     """
     client = client or anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
-    user_message = f"Design concept: {concept}"
+    user_message = (
+        f"Original concept: {concept}\n\n"
+        f"Architect design brief (JSON):\n{json.dumps(brief, ensure_ascii=False, indent=2)}"
+    )
     if feedback:
         user_message += (
-            "\n\nThe previous draft was rejected by the Reviewer agent. "
+            "\n\nThe previous prompt was rejected by the Reviewer agent. "
             f"Fix these issues before responding:\n{feedback}"
         )
 
@@ -99,9 +118,10 @@ def generate_design(
     )
 
     try:
-        draft = _extract_json(raw_text)
+        card = _extract_json(raw_text)
     except json.JSONDecodeError as exc:
-        raise DesignValidationError(f"Generator did not return valid JSON: {exc}\nRaw: {raw_text}") from exc
+        raise PromptValidationError(f"Generator did not return valid JSON: {exc}\nRaw: {raw_text}") from exc
 
-    validate_design(draft)
-    return draft
+    card.setdefault("concept", concept)
+    validate_prompt(card)
+    return card

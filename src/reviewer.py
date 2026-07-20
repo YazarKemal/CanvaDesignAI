@@ -1,4 +1,4 @@
-"""Reviewer agent: scores a Generator draft against the Design Constitution.
+"""Reviewer agent: scores a Generator prompt against the Art Director Constitution.
 
 Uses DeepSeek (an OpenAI-compatible API) because it is fast and cheap enough
 to run on every Generator attempt without materially affecting cost/latency.
@@ -43,12 +43,12 @@ def _system_prompt(pass_threshold: float, criteria: list[dict[str, Any]]) -> str
     )
     return (
         "You are the Reviewer agent inside CanvaDesignAI — a strict but fair "
-        "Canva Creator design QA reviewer. You are given the Design "
-        "Constitution and a design draft (JSON). Score the draft against "
-        "this rubric, on a 0-10 scale per criterion:\n"
+        "art director reviewing image-generation prompts. You are given the "
+        "Art Director Constitution and a visual-prompt draft (JSON). Score the "
+        "prompt against this rubric, on a 0-10 scale per criterion:\n"
         f"{criteria_desc}\n\n"
         f"{as_prompt_block(load_constitution())}\n\n"
-        "Compute the weighted average as the overall `score` (0-10). A draft "
+        "Compute the weighted average as the overall `score` (0-10). A prompt "
         f"passes if score >= {pass_threshold}.\n\n"
         "Respond with raw JSON only, no markdown fences, matching exactly:\n"
         "{\n"
@@ -69,13 +69,13 @@ def _extract_json(text: str) -> dict[str, Any]:
     return json.loads(text.strip())
 
 
-def review_design(
+def review_prompt(
     draft: dict[str, Any],
     *,
     model: str = DEFAULT_MODEL,
     client: OpenAI | None = None,
 ) -> ReviewResult:
-    """Score a design draft. Returns a ReviewResult with pass/fail + feedback."""
+    """Score a visual-prompt draft. Returns a ReviewResult with pass/fail + feedback."""
     constitution = load_constitution()
     rubric = constitution["review_rubric"]
     pass_threshold = float(rubric["pass_threshold"])
@@ -89,7 +89,7 @@ def review_design(
         model=model,
         messages=[
             {"role": "system", "content": _system_prompt(pass_threshold, rubric["criteria"])},
-            {"role": "user", "content": f"Design draft to review:\n{json.dumps(draft, ensure_ascii=False, indent=2)}"},
+            {"role": "user", "content": f"Visual prompt to review:\n{json.dumps(draft, ensure_ascii=False, indent=2)}"},
         ],
         temperature=0,
     )

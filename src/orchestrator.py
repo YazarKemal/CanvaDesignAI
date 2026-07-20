@@ -1,10 +1,16 @@
-"""Dual-agent orchestration: Generator (Claude) <-> Reviewer (DeepSeek).
+"""Canva Prompt Workbench orchestration — the three-stage flow.
 
-run_pipeline() drives the loop described in the design constitution:
-1. Generator drafts a design from a concept.
-2. Reviewer scores it against the constitution's rubric.
-3. If it fails, the Reviewer's feedback is fed back to the Generator for a
-   revision, up to `max_attempts`.
+    user request
+        │
+        ▼
+    Architect (DeepSeek)  -> technical design brief (Canva expert)
+        │
+        ▼
+    Generator (Claude)    -> copy-paste-ready prompt card
+        │
+        ▼
+    Reviewer (DeepSeek)   -> score; if < pass_threshold, feed feedback back
+                             to the Generator and retry (up to max_attempts)
 """
 
 from __future__ import annotations
@@ -12,15 +18,17 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from src.generator import generate_design
-from src.reviewer import ReviewResult, review_design
+from src.architect import build_brief
+from src.generator import generate_prompt
+from src.reviewer import ReviewResult, review_prompt
 
 DEFAULT_MAX_ATTEMPTS = 3
 
 
 @dataclass
 class PipelineResult:
-    design: dict[str, Any]
+    card: dict[str, Any]
+    brief: dict[str, Any]
     review: ReviewResult
     attempts: int
     approved: bool
@@ -31,32 +39,43 @@ def run_pipeline(
     concept: str,
     *,
     max_attempts: int = DEFAULT_MAX_ATTEMPTS,
+    architect_kwargs: dict[str, Any] | None = None,
     generator_kwargs: dict[str, Any] | None = None,
     reviewer_kwargs: dict[str, Any] | None = None,
 ) -> PipelineResult:
-    """Run the Generator -> Reviewer loop for `concept` until it passes or
-    `max_attempts` is exhausted. Always returns the best-scoring attempt.
+    """Run Architect -> Generator -> Reviewer for `concept`.
+
+    The Architect runs once to fix the brief; the Generator then revises
+    against Reviewer feedback until it passes or `max_attempts` is exhausted.
+    Always returns the best-scoring attempt.
     """
+    architect_kwargs = architect_kwargs or {}
     generator_kwargs = generator_kwargs or {}
     reviewer_kwargs = reviewer_kwargs or {}
 
+    brief = build_brief(concept, **architect_kwargs)
+
     history: list[dict[str, Any]] = []
-    best_draft: dict[str, Any] | None = None
+    best_card: dict[str, Any] | None = None
     best_review: ReviewResult | None = None
     feedback: str | None = None
 
     for attempt in range(1, max_attempts + 1):
-        draft = generate_design(concept, feedback=feedback, **generator_kwargs)
-        review = review_design(draft, **reviewer_kwargs)
-        history.append({"attempt": attempt, "design": draft, "score": review.score, "feedback": review.feedback})
+        card = generate_prompt(brief, concept=concept, feedback=feedback, **generator_kwargs)
+        review = review_prompt(card, **reviewer_kwargs)
+        history.append({"attempt": attempt, "card": card, "score": review.score, "feedback": review.feedback})
 
         if best_review is None or review.score > best_review.score:
-            best_draft, best_review = draft, review
+            best_card, best_review = card, review
 
         if review.passed:
-            return PipelineResult(design=draft, review=review, attempts=attempt, approved=True, history=history)
+            return PipelineResult(
+                card=card, brief=brief, review=review, attempts=attempt, approved=True, history=history
+            )
 
         feedback = review.feedback
 
-    assert best_draft is not None and best_review is not None
-    return PipelineResult(design=best_draft, review=best_review, attempts=max_attempts, approved=False, history=history)
+    assert best_card is not None and best_review is not None
+    return PipelineResult(
+        card=best_card, brief=brief, review=best_review, attempts=max_attempts, approved=False, history=history
+    )

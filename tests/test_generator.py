@@ -1,19 +1,34 @@
 import json
 from types import SimpleNamespace
 
-from src.generator import generate_design
+from src.generator import generate_prompt
 
-VALID_DRAFT = {
-    "theme": "Modern Cafe",
-    "color_palette": ["#4A2E1B", "#F5EFE6", "#D4A373"],
-    "typography": {
-        "headline": "Montserrat Bold: [Cafe Name]",
-        "body_text": "Join us for warm vibes!",
+BRIEF = {
+    "aspect_ratio": "1:1 (1080x1080)",
+    "target_tool": "Canva Magic Media",
+    "art_direction": {"color_palette": ["terracotta", "cream", "espresso"], "lighting": "daylight", "mood": "minimalist"},
+    "canva_keywords": ["flat vector illustration"],
+    "negative_constraints": "empty top for text; no embedded text",
+}
+
+VALID_CARD = {
+    "concept": "Grand Opening Cafe",
+    "prompt_text": (
+        "A minimalist flat vector illustration for a specialty coffee shop opening, "
+        "terracotta and cream palette, top-down espresso cup, ample negative space at "
+        "the top for overlaid text, isolated on a plain background."
+    ),
+    "negative_prompt": "embedded text, watermark, clutter",
+    "aspect_ratio": "1:1 (1080x1080)",
+    "target_tool": "Canva Magic Media",
+    "canva_tip": "Drop your headline into the empty top third.",
+    "art_direction": {
+        "color_palette": ["terracotta", "warm cream", "espresso brown"],
+        "lighting": "soft natural daylight",
+        "mood": "minimalist, vintage",
+        "magic_media_style": "Flat Vector",
     },
-    "image_prompts": {
-        "main_visual": "Cinematic shot of a latte with micro-foam art on a wooden table.",
-    },
-    "layout_instructions": "Place text at the top 40% of the canvas.",
+    "canva_keywords": ["flat vector illustration"],
 }
 
 
@@ -28,22 +43,24 @@ class _FakeAnthropicClient:
         return SimpleNamespace(content=[SimpleNamespace(type="text", text=self._reply_text)])
 
 
-def test_generate_design_parses_valid_json_reply():
-    client = _FakeAnthropicClient(json.dumps(VALID_DRAFT))
-    draft = generate_design("Grand Opening Cafe", client=client)
-    assert draft["theme"] == "Modern Cafe"
-    assert client.captured_kwargs["messages"][0]["content"].startswith("Design concept: Grand Opening Cafe")
-
-
-def test_generate_design_strips_markdown_fences():
-    fenced = f"```json\n{json.dumps(VALID_DRAFT)}\n```"
-    client = _FakeAnthropicClient(fenced)
-    draft = generate_design("Grand Opening Cafe", client=client)
-    assert draft["color_palette"] == VALID_DRAFT["color_palette"]
-
-
-def test_generate_design_includes_feedback_in_prompt_on_retry():
-    client = _FakeAnthropicClient(json.dumps(VALID_DRAFT))
-    generate_design("Grand Opening Cafe", feedback="Fix contrast on headline.", client=client)
+def test_generate_prompt_parses_card_and_passes_brief():
+    client = _FakeAnthropicClient(json.dumps(VALID_CARD))
+    card = generate_prompt(BRIEF, concept="Grand Opening Cafe", client=client)
+    assert card["prompt_text"].startswith("A minimalist flat vector")
     sent = client.captured_kwargs["messages"][0]["content"]
-    assert "Fix contrast on headline." in sent
+    assert "Original concept: Grand Opening Cafe" in sent
+    assert "Canva Magic Media" in sent  # brief was embedded
+
+
+def test_generate_prompt_defaults_concept_when_missing():
+    card_without_concept = {k: v for k, v in VALID_CARD.items() if k != "concept"}
+    client = _FakeAnthropicClient(json.dumps(card_without_concept))
+    card = generate_prompt(BRIEF, concept="Fallback Concept", client=client)
+    assert card["concept"] == "Fallback Concept"
+
+
+def test_generate_prompt_includes_feedback_on_retry():
+    client = _FakeAnthropicClient(json.dumps(VALID_CARD))
+    generate_prompt(BRIEF, concept="Cafe", feedback="Add more negative space.", client=client)
+    sent = client.captured_kwargs["messages"][0]["content"]
+    assert "Add more negative space." in sent

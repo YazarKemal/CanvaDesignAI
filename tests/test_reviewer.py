@@ -1,14 +1,16 @@
 import json
 from types import SimpleNamespace
 
-from src.reviewer import review_design
+from src.reviewer import review_prompt
 
-DRAFT = {
-    "theme": "Modern Cafe",
-    "color_palette": ["#4A2E1B", "#F5EFE6", "#D4A373"],
-    "typography": {"headline": "Montserrat Bold", "body_text": "Join us!"},
-    "image_prompts": {"main_visual": "A latte with micro-foam art."},
-    "layout_instructions": "Top 40% text, bottom 60% visual.",
+CARD = {
+    "concept": "Grand Opening Cafe",
+    "prompt_text": "A minimalist flat vector espresso cup, terracotta palette, negative space at top.",
+    "negative_prompt": "embedded text, watermark",
+    "aspect_ratio": "1:1 (1080x1080)",
+    "target_tool": "Canva Magic Media",
+    "canva_tip": "Add your headline up top.",
+    "art_direction": {"color_palette": ["terracotta", "cream", "espresso"], "lighting": "daylight", "mood": "minimalist"},
 }
 
 
@@ -24,24 +26,25 @@ class _FakeOpenAIClient:
         return SimpleNamespace(choices=[SimpleNamespace(message=message)])
 
 
-def test_review_design_pass():
-    reply = json.dumps({"score": 9.1, "criteria_scores": {"contrast_compliance": 9}, "feedback": ""})
+def test_review_prompt_pass_at_threshold():
+    # pass_threshold is 8.5 in the constitution.
+    reply = json.dumps({"score": 8.5, "criteria_scores": {"canva_fit": 9}, "feedback": ""})
     client = _FakeOpenAIClient(reply)
-    result = review_design(DRAFT, client=client)
+    result = review_prompt(CARD, client=client)
     assert result.passed is True
-    assert result.score == 9.1
+    assert result.score == 8.5
 
 
-def test_review_design_fail_below_threshold():
-    reply = json.dumps({"score": 5.5, "criteria_scores": {}, "feedback": "Increase text contrast."})
+def test_review_prompt_fail_just_below_threshold():
+    reply = json.dumps({"score": 8.4, "criteria_scores": {}, "feedback": "Reserve more negative space."})
     client = _FakeOpenAIClient(reply)
-    result = review_design(DRAFT, client=client)
+    result = review_prompt(CARD, client=client)
     assert result.passed is False
-    assert "contrast" in result.feedback.lower()
+    assert "negative space" in result.feedback.lower()
 
 
-def test_review_design_strips_markdown_fences():
-    fenced = "```json\n" + json.dumps({"score": 8.5, "criteria_scores": {}, "feedback": ""}) + "\n```"
+def test_review_prompt_strips_markdown_fences():
+    fenced = "```json\n" + json.dumps({"score": 9.0, "criteria_scores": {}, "feedback": ""}) + "\n```"
     client = _FakeOpenAIClient(fenced)
-    result = review_design(DRAFT, client=client)
+    result = review_prompt(CARD, client=client)
     assert result.passed is True
