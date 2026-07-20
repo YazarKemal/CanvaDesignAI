@@ -9,9 +9,13 @@ black background, monospace everywhere, grayscale only.
   `Describe a design` label, `>` cursor, and `generate` button.
 - `components/ChatPromptCard.tsx` — one left-bordered terminal log entry:
   parameters, a monochrome ASCII wireframe of `text_zone`, the prompt with a
-  one-click copy button, a plain-text contrast readout, and a "copy for
-  Claude / ChatGPT chat" button.
-- `app/api/chat/route.ts` — proxies to the Python FastAPI engine (`api.py`).
+  one-click copy button, a plain-text contrast readout, a "copy for
+  Claude / ChatGPT chat" button, and `[ story ] [ post ] [ banner ]`
+  Omni-Channel adapt buttons.
+- `components/BrandSelect.tsx` — a monochrome brand picker (fetches
+  `/api/brands`); the selected slug is sent with every chat/adapt request.
+- `app/api/chat/route.ts`, `app/api/brands/route.ts`, `app/api/adapt/route.ts`
+  — proxy to the Python FastAPI engine (`api.py`).
 
 ## Run
 

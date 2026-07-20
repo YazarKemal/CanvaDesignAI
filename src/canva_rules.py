@@ -19,6 +19,7 @@ CANVA_KNOWLEDGE_BASE: dict[str, Any] = {
         "flyer_a4": "2480x3508 (3:4 aspect)",
         "poster": "2480x3508 (3:4 aspect)",
         "presentation": "1920x1080 (16:9)",
+        "banner": "1920x1080 (16:9)",
         "youtube_thumbnail": "1280x720 (16:9)",
         "logo": "500x500 (1:1)",
         "business_card": "1050x600 (7:4 aspect)",

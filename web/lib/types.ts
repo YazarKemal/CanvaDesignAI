@@ -3,6 +3,23 @@
 
 export type TextZone = "top" | "bottom" | "left" | "right" | "center";
 
+// Mirrors src/omni_channel.py's TARGET_FORMATS keys.
+export type TargetFormat = "instagram_post" | "instagram_story" | "banner";
+
+export const TARGET_FORMAT_LABELS: Record<TargetFormat, string> = {
+  instagram_post: "post",
+  instagram_story: "story",
+  banner: "banner",
+};
+
+// Mirrors src/canva_rules.py's CANVA_KNOWLEDGE_BASE["dimensions"] values,
+// used only to hide the "adapt to X" button for a card's own format.
+export const TARGET_FORMAT_ASPECT_RATIOS: Record<TargetFormat, string> = {
+  instagram_post: "1080x1080 (1:1)",
+  instagram_story: "1080x1920 (9:16)",
+  banner: "1920x1080 (16:9)",
+};
+
 export interface LayerTypographyArchitecture {
   headline: string;
   subtext: string;
@@ -50,4 +67,20 @@ export interface LogEntry {
   pasteText?: string;
   contrastRatio?: number;
   error?: string;
+  // Set on an entry that was produced by "adapt to other formats" rather
+  // than a fresh chat request -- lets the card omit its own format button.
+  sourceFormat?: TargetFormat;
+}
+
+export interface Brand {
+  slug: string;
+  name: string;
+}
+
+export interface BrandsResponse {
+  brands: Brand[];
+}
+
+export interface AdaptResponse {
+  variants: Record<string, PromptCard>;
 }

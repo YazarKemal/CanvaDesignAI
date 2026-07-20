@@ -19,6 +19,7 @@ try:
 except ImportError:
     OpenAI = None  # type: ignore[assignment]
 
+from src.brand_profiles import as_prompt_block as brand_prompt_block
 from src.canva_rules import CANVA_KNOWLEDGE_BASE, detect_category, dimensions_for
 from src.llm_json import extract_json
 
@@ -41,8 +42,19 @@ BRIEF_SCHEMA_HINT = {
 }
 
 
-def _system_prompt() -> str:
+def _system_prompt(brand: dict[str, Any] | None = None) -> str:
     kb = json.dumps(CANVA_KNOWLEDGE_BASE, ensure_ascii=False, indent=2)
+    brand_section = ""
+    if brand is not None:
+        zone = brand.get("logo", {}).get("placement_zone", "")
+        brand_section = (
+            f"\n\n{brand_prompt_block(brand)}\n\n"
+            "9. Because a brand profile is active: art_direction.color_palette "
+            "MUST be chosen only from this brand's approved_colors (do not "
+            "invent new HEX values), and text_zone MUST avoid the brand's logo "
+            f"placement_zone ('{zone}') so the headline/subtext never overlaps "
+            "the logo."
+        )
     return (
         "Sen Canva Tasarim Mimarisin (Canva Design Architect), bir otomasyon "
         "motorunun ilk asamasisin. Kullanicinin istegini analiz et ve Canva'nin "
@@ -69,7 +81,8 @@ def _system_prompt() -> str:
         "one near-black or near-white anchor so text stays legible, lighting, mood}.\n"
         "7. canva_keywords — 2-4 items drawn from canva_element_keywords.\n"
         "8. negative_constraints — MUST enforce deliberate negative space at "
-        "text_zone's location and exclude embedded text.\n\n"
+        "text_zone's location and exclude embedded text."
+        f"{brand_section}\n\n"
         "Example shape (values illustrative only):\n"
         f"{json.dumps(BRIEF_SCHEMA_HINT, ensure_ascii=False, indent=2)}\n\n"
         "Respond with raw JSON only."
@@ -79,10 +92,15 @@ def _system_prompt() -> str:
 def build_brief(
     user_message: str,
     *,
+    brand: dict[str, Any] | None = None,
     model: str = DEFAULT_MODEL,
     client: OpenAI | None = None,
 ) -> dict[str, Any]:
-    """Produce a technical design brief for `user_message` (Stage 1)."""
+    """Produce a technical design brief for `user_message` (Stage 1).
+
+    If `brand` is given, the brief's color_palette and text_zone are
+    constrained by that brand profile.
+    """
     if client is None:
         if OpenAI is not None:
             client = OpenAI(
@@ -104,7 +122,7 @@ def build_brief(
     response = client.chat.completions.create(
         model=model,
         messages=[
-            {"role": "system", "content": _system_prompt()},
+            {"role": "system", "content": _system_prompt(brand)},
             {"role": "user", "content": f"User request: {user_message}{hint_text}"},
         ],
         temperature=0.2,

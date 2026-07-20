@@ -22,6 +22,7 @@ try:
 except ImportError:
     OpenAI = None  # type: ignore[assignment]
 
+from src.brand_profiles import as_prompt_block as brand_prompt_block
 from src.canva_rules import CANVA_KNOWLEDGE_BASE
 from src.constitution import as_prompt_block, load_constitution
 from src.llm_json import extract_json
@@ -65,8 +66,18 @@ OUTPUT_FORMAT_EXAMPLE = {
 }
 
 
-def _system_prompt() -> str:
+def _system_prompt(brand: dict[str, Any] | None = None) -> str:
     kb = json.dumps(CANVA_KNOWLEDGE_BASE, ensure_ascii=False, indent=2)
+    brand_section = ""
+    if brand is not None:
+        brand_section = (
+            f"\n\n{brand_prompt_block(brand)}\n\n"
+            "4. Because a brand profile is active: fonts.headline_font and "
+            "fonts.body_font MUST be EXACTLY this brand's signature_fonts "
+            "(ignore typography.approved_pairings entirely), and every "
+            "color_palette entry MUST be one of this brand's approved_colors "
+            "verbatim — do not invent, blend, or approximate a new HEX value."
+        )
     return (
         "Sen Claude degil, DeepSeek tabanli bir Canva Prompt Muhendisisin "
         "(Canva Prompt Engineer) — bir otomasyon motorunun ikinci asamasisin. "
@@ -96,7 +107,8 @@ def _system_prompt() -> str:
         "background_layers (how the generated image and text layers stack — "
         "MUST reference the same text_zone location).\n"
         "3. direct_action_tip — an ordered array of 2-5 concrete, literally-"
-        "clickable Canva steps per the direct_action_tip rules above.\n\n"
+        "clickable Canva steps per the direct_action_tip rules above."
+        f"{brand_section}\n\n"
         "text_zone — copy the brief's text_zone value verbatim (top/bottom/"
         "left/right/center). Both magic_media_prompt and background_layers "
         "MUST mention this same location in plain English (e.g. text_zone "
@@ -124,6 +136,7 @@ def generate_prompt(
     brief: dict[str, Any],
     *,
     concept: str,
+    brand: dict[str, Any] | None = None,
     feedback: str | None = None,
     model: str = DEFAULT_MODEL,
     client: Any = None,
@@ -131,9 +144,11 @@ def generate_prompt(
     """Turn the Architect `brief` into a validated Canva card (Stage 2).
 
     `concept` is the original user request (carried into the card). If
-    `feedback` is provided (from a prior Reviewer rejection or a schema/
-    forbidden-phrase validation failure), it is appended so the Generator
-    can course-correct on the next attempt.
+    `brand` is given, the card's fonts/colors are constrained to that
+    brand and validated against it. If `feedback` is provided (from a
+    prior Reviewer rejection or a schema/forbidden-phrase/brand-compliance
+    validation failure), it is appended so the Generator can course-correct
+    on the next attempt.
     """
     client = client or _default_client()
 
@@ -150,7 +165,7 @@ def generate_prompt(
     response = client.chat.completions.create(
         model=model,
         messages=[
-            {"role": "system", "content": _system_prompt()},
+            {"role": "system", "content": _system_prompt(brand)},
             {"role": "user", "content": user_message},
         ],
         temperature=0.3,
@@ -163,5 +178,5 @@ def generate_prompt(
         raise PromptValidationError(f"Generator did not return valid JSON: {exc}\nRaw: {raw_text}") from exc
 
     card.setdefault("concept", concept)
-    validate_prompt(card)
+    validate_prompt(card, brand=brand)
     return card

@@ -14,6 +14,8 @@ level (independent of whether the LLM follows its system prompt):
 - headline/subtext length limits (real "punchy" hierarchy, not just prose)
 - text_zone being consistently referenced in both the image prompt and the
   background_layers description
+- when a brand profile is active: exact signature-font match and a
+  color_palette drawn only from that brand's approved colors
 """
 
 from __future__ import annotations
@@ -22,6 +24,7 @@ from typing import Any
 
 import jsonschema
 
+from src.brand_profiles import approved_hex_colors
 from src.color_science import InvalidHexColorError, best_contrast_pair
 
 MIN_CONTRAST_RATIO = 4.5  # WCAG AA for normal-size text
@@ -200,9 +203,34 @@ def _validate_text_zone_consistency(card: dict[str, Any]) -> None:
         )
 
 
-def validate_prompt(card: dict[str, Any]) -> None:
+def validate_brand_compliance(card: dict[str, Any], brand: dict[str, Any]) -> None:
+    """When a brand profile is active, the card MUST use exactly that
+    brand's signature fonts and draw color_palette only from its approved
+    colors. Raises PromptValidationError on the first violation found."""
+    layer = card["layer_typography_architecture"]
+    signature = brand["signature_fonts"]
+
+    for role in ("headline_font", "body_font"):
+        if layer["fonts"].get(role) != signature[role]:
+            raise PromptValidationError(
+                f"fonts.{role} is '{layer['fonts'].get(role)}' but brand "
+                f"'{brand['slug']}' requires exactly '{signature[role]}'."
+            )
+
+    approved = approved_hex_colors(brand)
+    for hex_color in layer["color_palette"]:
+        if hex_color.upper() not in approved:
+            raise PromptValidationError(
+                f"color_palette includes '{hex_color}' which is not one of brand "
+                f"'{brand['slug']}''s approved colors ({sorted(approved)}). Every "
+                "palette color must come from the brand's approved set."
+            )
+
+
+def validate_prompt(card: dict[str, Any], *, brand: dict[str, Any] | None = None) -> None:
     """Validate a Canva card: schema shape + every code-level Art Director
-    rule (chat language, contrast, hierarchy, zone consistency).
+    rule (chat language, contrast, hierarchy, zone consistency, and — when
+    `brand` is given — brand compliance).
 
     Raises PromptValidationError with a readable message on the first
     failing check.
@@ -223,3 +251,6 @@ def validate_prompt(card: dict[str, Any]) -> None:
     _validate_typography_hierarchy(layer)
     _validate_color_contrast(layer)
     _validate_text_zone_consistency(card)
+
+    if brand is not None:
+        validate_brand_compliance(card, brand)

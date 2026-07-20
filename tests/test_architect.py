@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from src.architect import build_brief
+from src.brand_profiles import load_brand
 
 BRIEF = {
     "detected_category": "instagram_post",
@@ -53,3 +54,19 @@ def test_build_brief_raises_on_bad_json():
     client = _FakeOpenAIClient("not json at all")
     with pytest.raises(ValueError):
         build_brief("a flyer", client=client)
+
+
+def test_build_brief_embeds_brand_and_logo_zone_when_brand_given():
+    brand = load_brand("example-cafe")
+    client = _FakeOpenAIClient(json.dumps(BRIEF))
+    build_brief("Grand Opening Cafe", brand=brand, client=client)
+    system_msg = client.captured_kwargs["messages"][0]["content"]
+    assert "BRAND PROFILE" in system_msg
+    assert "bottom-right" in system_msg  # brand's logo.placement_zone
+
+
+def test_build_brief_without_brand_omits_brand_section():
+    client = _FakeOpenAIClient(json.dumps(BRIEF))
+    build_brief("Grand Opening Cafe", client=client)
+    system_msg = client.captured_kwargs["messages"][0]["content"]
+    assert "BRAND PROFILE" not in system_msg
