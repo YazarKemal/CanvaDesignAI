@@ -65,6 +65,37 @@ ready to copy, apply by hand, or wire up to the Canva API later:
 See [`examples/grand_opening_cafe.json`](examples/grand_opening_cafe.json)
 for a full example.
 
+## 4. Publishing to Canva
+
+Canva's public Connect API does not expose "Magic Media" (its AI
+text-to-image feature) to third-party developers — it only offers asset
+upload and design creation. So turning a design draft into a real Canva
+design takes two steps:
+
+```
+draft ──▶ OpenAIImageProvider (generates image_prompts.main_visual) ──▶ image bytes
+              │
+              ▼
+        CanvaClient.upload_asset ──▶ asset_id ──▶ CanvaClient.create_design ──▶ edit_url
+```
+
+- **`src/image_provider.py`** (OpenAI Images API): renders
+  `image_prompts.main_visual` into an actual image, since Canva's API can't.
+- **`src/canva_client.py`** (Canva Connect API): uploads that image as an
+  asset and creates a design from it (plus `export_design` to download a
+  finished file). Auth is a bearer access token — obtaining one requires
+  Canva's OAuth2 (authorization code + PKCE) flow, which is not implemented
+  here; generate a token via Canva's own quickstart/Postman collection and
+  set `CANVA_ACCESS_TOKEN`.
+- **`src/canva_pipeline.py`**: wires the two together —
+  `publish_design_to_canva(design, canva_client=..., image_provider=...)`.
+
+> Endpoint paths/fields in `canva_client.py` are written from documentation
+> knowledge (Canva's docs site blocked automated fetches while this was
+> built) — spot-check against the current [Canva Connect API
+> reference](https://www.canva.dev/docs/connect/) before relying on it in
+> production.
+
 ## Usage
 
 ```bash
@@ -72,6 +103,9 @@ pip install -r requirements.txt
 cp .env.example .env   # fill in ANTHROPIC_API_KEY and DEEPSEEK_API_KEY
 
 python main.py "Grand Opening Cafe"
+
+# Also generate the main visual and push it into a real Canva design:
+python main.py "Grand Opening Cafe" --publish-to-canva --canva-design-type poster
 ```
 
 ## Development
@@ -82,4 +116,4 @@ pytest
 ```
 
 All API calls are wrapped behind injectable clients, so the test suite runs
-fully offline against mocked Anthropic/DeepSeek responses.
+fully offline against mocked Anthropic/DeepSeek/OpenAI/Canva responses.
