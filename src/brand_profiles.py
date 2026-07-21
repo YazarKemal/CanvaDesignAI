@@ -48,10 +48,45 @@ def approved_hex_colors(brand: dict[str, Any]) -> set[str]:
     return flat
 
 
+def visual_identity_block(brand: dict[str, Any]) -> str:
+    """Render a brand's visual_identity as explicit image-prompt steering.
+
+    Brand deep integration: the profile must influence not just the text
+    overlays' fonts/colors but the *image itself* — its mood, lighting
+    warmth, and material/texture cues must be embedded into
+    magic_media_prompt. Returns an empty string if the brand has no
+    visual_identity block (older profiles stay backward-compatible).
+    """
+    vi = brand.get("visual_identity")
+    if not vi:
+        return ""
+
+    parts: list[str] = []
+    if vi.get("mood"):
+        parts.append(f"- Mood to embody in the image: {vi['mood']}.")
+    if vi.get("lighting_warmth"):
+        parts.append(f"- Lighting warmth: {vi['lighting_warmth']}.")
+    if vi.get("texture_cues"):
+        parts.append(f"- Material/texture cues to weave in: {', '.join(vi['texture_cues'])}.")
+    if vi.get("photographic_style"):
+        parts.append(f"- Photographic/illustrative register: {vi['photographic_style']}.")
+
+    body = "\n".join(parts)
+    return (
+        "BRAND VISUAL IDENTITY (mandatory — embed these directly into "
+        "magic_media_prompt so the generated image itself reads on-brand, not "
+        "only the typography overlay):\n" + body
+    )
+
+
 def as_prompt_block(brand: dict[str, Any]) -> str:
     """Render a brand profile as an instruction block for LLM prompts."""
-    return (
+    block = (
         f"BRAND PROFILE (mandatory — this design MUST use ONLY this brand's fonts "
         f"and colors, overriding the generic Art Director typography/color "
         f"defaults):\n{json.dumps(brand, ensure_ascii=False, indent=2)}"
     )
+    visual = visual_identity_block(brand)
+    if visual:
+        block += f"\n\n{visual}"
+    return block

@@ -1,7 +1,7 @@
 {
   "$schema": "https://canvadesignai.dev/schemas/art-director-constitution-v2.json",
   "name": "CaVDesign Canva Automation Constitution",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "Canonical rules for a Canva-only automation engine. Every stage (Architect, Generator, Reviewer) runs on DeepSeek and must return a single machine-consumable Canva card — never chat, never a question, never prose outside the card's fields. This project outputs cards ONLY: it never generates images and never touches Canva or any external tool on the user's behalf.",
 
   "output_contract": {
@@ -92,6 +92,20 @@
     "consistency": "Mood, lighting, palette and medium must all point at the same feeling. A 'cozy cafe' is not lit with hard neon; a 'high-energy sale' is not shot in muted overcast light."
   },
 
+  "aesthetic_taxonomy": {
+    "rule": "ELIMINATE generic descriptors. Every subject, material and mood word in magic_media_prompt must be upgraded to precise, professional design taxonomy — concrete materials, named light qualities, and a specific photographic/illustrative register — so Canva's Magic Media / Flux / SDXL engines have unambiguous, high-signal tokens to render. Vague adjectives ('nice', 'cozy', 'modern', 'beautiful', 'cool') are forbidden as the whole descriptor; each must be replaced by what actually produces that impression on camera.",
+    "upgrade_examples": [
+      { "generic": "cozy coffee shop", "upgraded": "minimalist Scandinavian aesthetic, warm oak wood textures, soft natural morning window light, high-end editorial photography, matte porcelain details" },
+      { "generic": "modern office", "upgraded": "clean corporate interior, brushed matte-aluminium and warm walnut surfaces, floor-to-ceiling diffused daylight, wide-angle architectural photography, muted desaturated palette" },
+      { "generic": "beautiful flowers", "upgraded": "editorial floral still life, dewy garden roses and eucalyptus, soft diffused overcast light, macro 100mm shallow depth of field, painterly muted tones" },
+      { "generic": "delicious food", "upgraded": "overhead flat-lay food photography, glossy ceramic plating on textured linen, directional soft window light, 45-degree steam highlights, Kodak Portra warmth" }
+    ],
+    "material_texture_lexicon": ["matte porcelain", "warm oak wood grain", "brushed brass", "hand-thrown ceramic", "raw linen weave", "polished concrete", "aged terracotta", "frosted glass", "soft velvet nap", "brushed aluminium"],
+    "light_quality_lexicon": ["soft natural morning window light", "golden-hour rim light", "diffused overcast light", "hard directional midday sun", "warm practical tungsten glow", "cool blue-hour ambient", "studio softbox key with gentle fill"],
+    "register_lexicon": ["high-end editorial photography", "product hero shot", "architectural wide-angle", "macro detail study", "flat-lay overhead", "cinematic still", "clean flat-vector illustration", "isometric 3d render"],
+    "enforcement": "Reviewer judges this under magic_media_prompt_quality — a prompt still leaning on bare generic adjectives instead of this taxonomy is scored down and regenerated."
+  },
+
   "negative_prompt": {
     "rule": "Always provide a negative_prompt listing what to exclude. Baseline exclusions for any image meant as a clean design base:",
     "baseline": ["text", "watermark", "signature", "logo", "extra fingers", "deformed hands", "distorted faces", "low resolution", "jpeg artifacts", "cluttered background", "harsh oversaturation"],
@@ -114,7 +128,7 @@
   "review_rubric": {
     "criteria": [
       { "id": "concept_fidelity", "weight": 0.12, "question": "Does the card faithfully and vividly capture the user's original concept?" },
-      { "id": "magic_media_prompt_quality", "weight": 0.18, "question": "Is magic_media_prompt concrete, renderable, and correctly ordered (subject->medium->composition->lighting->color->camera->quality) with no vague abstractions?" },
+      { "id": "magic_media_prompt_quality", "weight": 0.18, "question": "Is magic_media_prompt concrete, renderable, and correctly ordered (subject->medium->composition->lighting->color->camera->quality), does it use precise aesthetic_taxonomy (concrete materials, named light qualities, a specific register) instead of generic adjectives, and is its composition/negative space tuned to the specific aspect ratio?" },
       { "id": "layer_typography_architecture_quality", "weight": 0.18, "question": "Are headline/subtext sharp and short, is color_palette valid coherent HEX with a real contrast anchor, and is the font pairing + size hierarchy + background layer distribution sound?" },
       { "id": "direct_action_tip_quality", "weight": 0.13, "question": "Are the action steps concrete, ordered, and literally clickable in Canva (not generic advice)?" },
       { "id": "canva_fit", "weight": 0.14, "question": "Does the prompt use Canva-friendly library keywords, reserve deliberate negative space exactly at text_zone, and does the subject's visual weight avoid competing with the text_zone?" },

@@ -122,3 +122,33 @@ def test_generate_omni_channel_set_calls_adapt_for_each_format():
 
     assert set(variants) == {"instagram_story", "banner"}
     assert variants["banner"]["aspect_ratio"] == TARGET_FORMATS["banner"]
+
+
+def test_adapt_injects_format_specific_composition_for_story():
+    base = _load_base_card()
+    client = _FakeClient([json.dumps(VALID_STORY_ADAPTATION)])
+    adapt_to_format(base, "instagram_story", client=client)
+    system_msg = client.calls[0]["messages"][0]["content"]
+    assert "FORMAT-SPECIFIC COMPOSITION" in system_msg
+    assert "vertical leading lines" in system_msg  # 9:16 recipe
+    assert "golden-ratio" not in system_msg
+
+
+def test_adapt_injects_horizontal_composition_for_banner():
+    base = _load_base_card()
+    banner_adaptation = dict(VALID_STORY_ADAPTATION)
+    banner_adaptation["text_zone"] = "left"
+    banner_adaptation["magic_media_prompt"] = (
+        "A minimalist 3d flat vector illustration for a specialty coffee shop grand "
+        "opening, earthy terracotta and warm cream color palette, wide horizontal "
+        "framing with the espresso cup offset to the right, ample negative space on "
+        "the left for overlaying text in Canva, isolated on a plain background."
+    )
+    banner_adaptation["background_layers"] = (
+        "generated image fills the frame; a clean panel on the left carries the headline/subtext"
+    )
+    client = _FakeClient([json.dumps(banner_adaptation)])
+    adapt_to_format(base, "banner", client=client)
+    system_msg = client.calls[0]["messages"][0]["content"]
+    assert "dynamic horizontal framing" in system_msg  # 16:9 recipe
+    assert "panoramic" in system_msg

@@ -24,6 +24,7 @@ except ImportError:
     OpenAI = None  # type: ignore[assignment]
 
 from src.canva_rules import CANVA_KNOWLEDGE_BASE
+from src.composition_rules import as_prompt_block as composition_prompt_block
 from src.llm_json import extract_json
 from src.schema import PromptValidationError, validate_prompt
 
@@ -49,18 +50,21 @@ def _system_prompt(target_format: str, aspect_ratio: str) -> str:
         f"'{target_format}' at aspect ratio {aspect_ratio}. Reply with a single "
         "JSON object and NOTHING else — no greeting, no prose, no markdown "
         "fences, no questions back to the user.\n\n"
+        f"{composition_prompt_block(aspect_ratio)}\n\n"
         "HARD RULES:\n"
         "- concept, headline, subtext, color_palette, fonts, negative_prompt, "
         "and canva_keywords are FIXED — do not change them, do not repeat them "
         "in your reply.\n"
         "- Output EXACTLY these four keys, nothing else:\n"
         "  1. text_zone — one of 'top'/'bottom'/'left'/'right'/'center', "
-        "chosen for what best suits THIS aspect ratio (a 9:16 vertical story "
-        "often wants a different zone than a 1:1 square).\n"
+        "chosen using the FORMAT-SPECIFIC COMPOSITION rules above for what best "
+        "suits THIS aspect ratio (a 9:16 vertical story often wants a different "
+        "zone than a 1:1 square).\n"
         "  2. magic_media_prompt — rewrite ONLY the composition/framing for "
-        "the new aspect ratio, keeping the same subject, medium, lighting, "
-        "mood, and color palette. MUST mention text_zone's location in plain "
-        "English, matching rule #1.\n"
+        "the new aspect ratio per the composition rules above (leading lines, "
+        "depth, lighting), keeping the same subject, medium, mood, and color "
+        "palette. MUST reserve negative space per the chosen text_zone and "
+        "mention that location in plain English, matching rule #1.\n"
         "  3. background_layers — how the image and typography layers stack "
         "for this format; MUST also mention the same text_zone location.\n"
         "  4. direct_action_tip — an ordered array of 2-5 concrete Canva steps "

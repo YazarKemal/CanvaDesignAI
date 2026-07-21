@@ -52,6 +52,14 @@ fallback for platforms — e.g. Android/Termux — where the `openai` SDK's
   review rubric (8.5 pass threshold).
 - **`src/color_science.py`** — real WCAG contrast-ratio and hue-distance
   math (pure Python, no dependency) backing the color theory rules.
+- **`src/composition_rules.py`** — format-specific composition, lighting and
+  depth recipes plus precise per-`text_zone` negative-space language, keyed
+  by aspect-ratio family (9:16 vertical / 1:1 square / 16:9 horizontal / 4:5
+  portrait). Injected deterministically into the Generator and Omni-Channel
+  system prompts so each design is composed *for* its exact canvas (e.g. a
+  9:16 story gets vertical leading lines + "reserve the upper 40% as a clean
+  minimalist band for the overlay"; a 16:9 banner gets rule-of-thirds offset
+  + panoramic depth) rather than relying on the LLM to reinvent it per call.
 - **`src/schema.py`** — validates the card's shape AND runs several
   **code-level** Art Director checks, independent of whether the LLM
   follows its system prompt: a ban on conversational filler ("I can
@@ -114,7 +122,12 @@ and approved colors instead of the generic Art Director defaults. Pass
 `--brand <slug>` (CLI) or `brand` (API/UI); every stage — Architect,
 Generator, Reviewer — is constrained to that profile, and `src/schema.py`
 **hard-rejects** (retried, same as contrast/text_zone) a card using the
-wrong font or an unapproved color. See
+wrong font or an unapproved color. A profile's optional `visual_identity`
+block (mood, `lighting_warmth`, `texture_cues`, `photographic_style`) goes
+one level deeper: it's rendered as explicit steering that must be embedded
+into `magic_media_prompt` itself, so the **generated image** reads on-brand
+(warm oak textures, morning window light, editorial register) — not just
+the typography overlay. See
 [`config/brands/example-cafe.json`](config/brands/example-cafe.json).
 
 **Critic = the existing Reviewer, extended — not a new stage.** Rather than
@@ -183,7 +196,7 @@ cd web && cp .env.example .env.local && npm install && npm run dev
 
 ```bash
 pip install -r requirements.txt pytest
-pytest                        # 106 tests, fully offline (mocked DeepSeek/HTTP)
+pytest                        # 132 tests, fully offline (mocked DeepSeek/HTTP)
 
 cd web && npm run typecheck && npm run build
 ```
