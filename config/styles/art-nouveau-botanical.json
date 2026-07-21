@@ -1,0 +1,14 @@
+{
+  "slug": "art-nouveau-botanical",
+  "name": "Art Nouveau Botanical",
+  "description": "1890s Art Nouveau lithograph poster: whiplash curve linework, flowing botanical ornament, stained-glass leadline outlines around muted panels.",
+  "recommended_magic_media_style": "Paper Cut",
+  "magic_media_keywords": "1890s Art Nouveau lithograph poster, whiplash curve linework, flowing botanical ornament of stems and blossoms, stained-glass leadline outlines around flat muted color panels, soft velvet nap backdrop texture, soft natural morning window light, one arched ornamental frame enclosing calm negative space for typography.",
+  "required_keywords": [
+    "art nouveau lithograph",
+    "whiplash curve",
+    "botanical ornament",
+    "stained-glass leadline"
+  ],
+  "palette_hint": "fin-de-siècle botanics — muted olive (#6B7F3F) and dusty rose (#B4756B) on parchment (#F1E6C9), anchored by deep umber (#2E2014) for legible contrast"
+}

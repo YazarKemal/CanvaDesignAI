@@ -19,6 +19,35 @@ EXPECTED_SLUGS = {
     "riso-print-editorial",
     "bauhaus-modernist-poster",
     "kodachrome-americana",
+    "swiss-international-grid",
+    "memphis-design-pop",
+    "art-deco-metropolis",
+    "brutalist-concrete",
+    "ukiyo-e-woodblock",
+    "psychedelic-fillmore",
+    "vaporwave-arcade-dusk",
+    "mid-century-modern-print",
+    "art-nouveau-botanical",
+    "constructivist-agitprop",
+    "dutch-golden-age-still-life",
+    "y2k-chrome-gloss",
+}
+
+# The 12 wave-2 presets: each anchored to a concrete art/design tradition and
+# required to draw terms from the aesthetic_taxonomy lexicons.
+WAVE2_SLUGS = {
+    "swiss-international-grid",
+    "memphis-design-pop",
+    "art-deco-metropolis",
+    "brutalist-concrete",
+    "ukiyo-e-woodblock",
+    "psychedelic-fillmore",
+    "vaporwave-arcade-dusk",
+    "mid-century-modern-print",
+    "art-nouveau-botanical",
+    "constructivist-agitprop",
+    "dutch-golden-age-still-life",
+    "y2k-chrome-gloss",
 }
 
 
@@ -87,6 +116,51 @@ def test_new_presets_reference_concrete_art_traditions():
     assert "kodachrome color documentary" in kodak["magic_media_keywords"].lower()
     # draws its light quality verbatim from the aesthetic_taxonomy lexicon
     assert "golden-hour rim light" in kodak["magic_media_keywords"]
+
+
+def test_wave2_presets_are_anchored_to_concrete_traditions():
+    # Each of the 12 wave-2 presets is pinned to one specific, nameable
+    # art/design tradition via a distinctive anchor keyword that
+    # validate_style_compliance will hard-enforce in every image prompt.
+    anchors = {
+        "swiss-international-grid": "swiss international typographic style",
+        "memphis-design-pop": "memphis design",
+        "art-deco-metropolis": "art deco",
+        "brutalist-concrete": "brutalist architecture",
+        "ukiyo-e-woodblock": "ukiyo-e woodblock",
+        "psychedelic-fillmore": "psychedelic concert poster",
+        "vaporwave-arcade-dusk": "vaporwave",
+        "mid-century-modern-print": "mid-century modern",
+        "art-nouveau-botanical": "art nouveau lithograph",
+        "constructivist-agitprop": "constructivist agitprop",
+        "dutch-golden-age-still-life": "dutch golden age still life",
+        "y2k-chrome-gloss": "y2k",
+    }
+    for slug, anchor in anchors.items():
+        style = load_style(slug)
+        assert anchor in style["magic_media_keywords"].lower()
+        assert any(anchor in kw.lower() for kw in style["required_keywords"]), (
+            f"{slug}: tradition anchor '{anchor}' must be code-enforced via required_keywords"
+        )
+
+
+def test_wave2_presets_use_aesthetic_taxonomy_lexicon_term():
+    # Every wave-2 preset must draw at least one term verbatim from the
+    # aesthetic_taxonomy lexicons (materials / light / register). Earlier
+    # presets predate this convention and are exempt.
+    from src.constitution import load_constitution
+
+    tax = load_constitution()["aesthetic_taxonomy"]
+    lexicon = {
+        t.lower()
+        for key in ("material_texture_lexicon", "light_quality_lexicon", "register_lexicon")
+        for t in tax[key]
+    }
+    for slug in WAVE2_SLUGS:
+        block = load_style(slug)["magic_media_keywords"].lower()
+        assert any(term in block for term in lexicon), (
+            f"{slug}: magic_media_keywords uses no aesthetic_taxonomy lexicon term"
+        )
 
 
 def test_every_preset_uses_valid_canva_style_and_contrastable_palette_hint():

@@ -1,0 +1,14 @@
+{
+  "slug": "swiss-international-grid",
+  "name": "Swiss International Grid",
+  "description": "1950s Swiss International Typographic Style: strict mathematical grid, flat solid color fields, objective neutrality, and engineered white space.",
+  "recommended_magic_media_style": "Minimalist",
+  "magic_media_keywords": "Swiss International Typographic Style poster composition, strict mathematical grid with generous structured white space, flat solid color fields, one objective photographic cutout element, clean flat-vector illustration accents, diffused overcast light neutrality, ample uncluttered negative space engineered for typography.",
+  "required_keywords": [
+    "swiss international typographic style",
+    "mathematical grid",
+    "flat solid color fields",
+    "structured white space"
+  ],
+  "palette_hint": "Swiss reduction — signal red (#E30613) on paper white (#F4F4F2), anchored by near-black (#111111) for legible contrast"
+}

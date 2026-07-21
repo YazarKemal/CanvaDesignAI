@@ -1,0 +1,14 @@
+{
+  "slug": "psychedelic-fillmore",
+  "name": "Psychedelic Fillmore",
+  "description": "Late-1960s San Francisco psychedelic concert poster: swirling liquid contours, vibrating orange-violet fields, hand-drawn optical ripples.",
+  "recommended_magic_media_style": "Vibrant",
+  "magic_media_keywords": "Late-1960s San Francisco psychedelic concert poster, swirling liquid contour shapes and melting curvilinear frames, vibrating orange and violet color fields, hand-drawn optical ripple patterns, warm practical tungsten glow haze, flat poster ink finish, one hypnotic swirl center left open as negative space for typography.",
+  "required_keywords": [
+    "psychedelic concert poster",
+    "swirling liquid",
+    "vibrating orange and violet",
+    "optical ripple"
+  ],
+  "palette_hint": "Fillmore heat — hot orange (#F26419) and deep violet (#4B1D82) with acid yellow (#F7E733), anchored by near-black plum (#1B1026) for legible contrast"
+}
