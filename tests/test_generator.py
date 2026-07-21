@@ -317,3 +317,74 @@ def test_generate_prompt_rejects_card_missing_required_style_keyword():
     client = _FakeOpenAIClient(json.dumps(off_style))
     with pytest.raises(PromptValidationError, match="style keyword"):
         generate_prompt(BRIEF, concept="Underground gig poster", style=style, client=client)
+
+
+# -- Few-shot golden card injection tests ---------------------------------
+
+
+def test_generator_injects_golden_card_when_style_has_match():
+    """When the active style has a golden reference card, the system prompt
+    must include the GOLDEN REFERENCE CARD block with the matching style_id."""
+    style = load_style("warm-editorial-minimalist")
+    # Build a card that carries warm-editorial-minimalist required keywords
+    warm_card = json.loads(json.dumps(VALID_CARD))
+    warm_card["magic_media_prompt"] = (
+        "Warm editorial minimalist lifestyle composition with a thin-line "
+        "ornamental border, soft natural morning window light, cream paper "
+        "texture background, aged terracotta accents, high-end editorial "
+        "photography register, generous airy negative space at the top, a "
+        "single ceramic cup on linen."
+    )
+    client = _FakeOpenAIClient(json.dumps(warm_card))
+    generate_prompt(BRIEF, concept="Calm lifestyle post", style=style, client=client)
+    system_msg = client.captured_kwargs["messages"][0]["content"]
+    assert "GOLDEN REFERENCE CARD" in system_msg
+    assert "warm-editorial-minimalist" in system_msg
+    assert "9." in system_msg  # score
+
+
+def test_generator_skips_golden_card_for_unknown_style_silently():
+    """A style_id with no golden card must NOT crash — the injection is
+    silently skipped and the prompt is built normally."""
+    unknown_style = {
+        "slug": "future-unreleased-style",
+        "name": "Future Unreleased",
+        "magic_media_keywords": "some keywords for testing purposes",
+        "required_keywords": ["some keywords", "testing"],
+        "recommended_magic_media_style": "Flat Vector",
+        "palette_hint": "#111 #EEE",
+        "best_for": "testing edge cases",
+    }
+    test_card = json.loads(json.dumps(VALID_CARD))
+    test_card["magic_media_prompt"] = (
+        "A test image with some keywords for testing purposes, flat vector "
+        "illustration style, empty negative space at the top."
+    )
+    test_card["concept"] = "Test"  # override VALID_CARD's default concept
+    client = _FakeOpenAIClient(json.dumps(test_card))
+    card = generate_prompt(BRIEF, concept="Test", style=unknown_style, client=client)
+    system_msg = client.captured_kwargs["messages"][0]["content"]
+    assert "GOLDEN REFERENCE CARD" not in system_msg
+    assert "ELITE STYLE PRESET" in system_msg  # normal style block still present
+    assert card["concept"] == "Test"
+
+
+def test_golden_card_injection_does_not_change_llm_call_count():
+    """Few-shot injection is a prompt-content addition, NOT an extra API
+    call. The Generator must still make exactly ONE .create() call."""
+    style = load_style("kodachrome-americana")
+    # Card with kodachrome required keywords
+    koda_card = json.loads(json.dumps(VALID_CARD))
+    koda_card["magic_media_prompt"] = (
+        "1970s Kodachrome color documentary photography of a vintage roadside "
+        "diner, saturated warm reds, deep teal shadows, fine analog film grain, "
+        "golden-hour rim light with long shadows, quiet roadside Americana "
+        "stillness, empty sky at the top for text."
+    )
+    client = _FakeOpenAIClient(json.dumps(koda_card))
+    generate_prompt(BRIEF, concept="Roadside diner post", style=style, client=client)
+
+    # The fake client captures exactly one call per generate_prompt invocation
+    assert client.captured_kwargs is not None
+    assert client.captured_kwargs["model"] == "deepseek-chat"
+    assert len(client.captured_kwargs["messages"]) == 2
