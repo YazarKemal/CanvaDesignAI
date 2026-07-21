@@ -5,6 +5,7 @@ from src.brand_profiles import BrandNotFoundError, load_brand
 from src.orchestrator import PipelineError
 from src.reviewer import ReviewResult
 from src.schema import PromptValidationError
+from src.style_presets import StyleNotFoundError, load_style
 
 BRIEF = {"aspect_ratio": "1:1 (1080x1080)", "target_tool": "Canva Magic Media"}
 
@@ -166,3 +167,37 @@ def test_pipeline_without_brand_passes_none_through(monkeypatch):
     orchestrator.run_pipeline("Grand Opening Cafe")
 
     assert captured["brand"] is None
+
+
+def test_pipeline_resolves_style_slug_and_threads_it_to_architect_and_generator(monkeypatch):
+    expected_style = load_style("neo-grunge-streetwear")
+    captured = {}
+
+    def fake_build_brief(concept, *, brand=None, style=None, **kw):
+        captured["architect_style"] = style
+        return BRIEF
+
+    def fake_generate(brief, concept, *, brand=None, style=None, feedback=None, **kw):
+        captured["generator_style"] = style
+        return CARD
+
+    monkeypatch.setattr(orchestrator, "build_brief", fake_build_brief)
+    monkeypatch.setattr(orchestrator, "generate_prompt", fake_generate)
+    monkeypatch.setattr(
+        orchestrator, "review_prompt", lambda card, **kw: ReviewResult(score=9.0, passed=True, feedback="")
+    )
+
+    orchestrator.run_pipeline("Grand Opening Cafe", style="neo-grunge-streetwear")
+
+    assert captured["architect_style"] == expected_style
+    assert captured["generator_style"] == expected_style
+
+
+def test_pipeline_unknown_style_raises_before_any_stage_runs(monkeypatch):
+    def must_not_be_called(*args, **kwargs):
+        raise AssertionError("build_brief should never run for an unknown style")
+
+    monkeypatch.setattr(orchestrator, "build_brief", must_not_be_called)
+
+    with pytest.raises(StyleNotFoundError):
+        orchestrator.run_pipeline("Grand Opening Cafe", style="does-not-exist")

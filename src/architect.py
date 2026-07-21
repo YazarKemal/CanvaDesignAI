@@ -22,6 +22,7 @@ except ImportError:
 from src.brand_profiles import as_prompt_block as brand_prompt_block
 from src.canva_rules import CANVA_KNOWLEDGE_BASE, detect_category, dimensions_for
 from src.llm_json import extract_json
+from src.style_presets import as_prompt_block as style_prompt_block
 
 DEFAULT_MODEL = "deepseek-chat"
 DEFAULT_BASE_URL = "https://api.deepseek.com"
@@ -42,8 +43,17 @@ BRIEF_SCHEMA_HINT = {
 }
 
 
-def _system_prompt(brand: dict[str, Any] | None = None) -> str:
+def _system_prompt(
+    brand: dict[str, Any] | None = None, style: dict[str, Any] | None = None
+) -> str:
     kb = json.dumps(CANVA_KNOWLEDGE_BASE, ensure_ascii=False, indent=2)
+    style_section = (
+        f"\n\n{style_prompt_block(style)}\n\nBecause a style preset is active: set "
+        "art_direction.mood, lighting and magic_media_style to align with this "
+        "preset, and pick a color_palette consistent with its palette guidance."
+        if style is not None
+        else ""
+    )
     brand_section = ""
     if brand is not None:
         zone = brand.get("logo", {}).get("placement_zone", "")
@@ -88,6 +98,7 @@ def _system_prompt(brand: dict[str, Any] | None = None) -> str:
         "7. canva_keywords — 2-4 items drawn from canva_element_keywords.\n"
         "8. negative_constraints — MUST enforce deliberate negative space at "
         "text_zone's location and exclude embedded text."
+        f"{style_section}"
         f"{brand_section}\n\n"
         "Example shape (values illustrative only):\n"
         f"{json.dumps(BRIEF_SCHEMA_HINT, ensure_ascii=False, indent=2)}\n\n"
@@ -99,13 +110,15 @@ def build_brief(
     user_message: str,
     *,
     brand: dict[str, Any] | None = None,
+    style: dict[str, Any] | None = None,
     model: str = DEFAULT_MODEL,
     client: OpenAI | None = None,
 ) -> dict[str, Any]:
     """Produce a technical design brief for `user_message` (Stage 1).
 
     If `brand` is given, the brief's color_palette and text_zone are
-    constrained by that brand profile.
+    constrained by that brand profile. If `style` is given, its elite style
+    preset steers the brief's art_direction (mood/lighting/palette/style).
     """
     if client is None:
         if OpenAI is not None:
@@ -128,7 +141,7 @@ def build_brief(
     response = client.chat.completions.create(
         model=model,
         messages=[
-            {"role": "system", "content": _system_prompt(brand)},
+            {"role": "system", "content": _system_prompt(brand, style)},
             {"role": "user", "content": f"User request: {user_message}{hint_text}"},
         ],
         temperature=0.2,

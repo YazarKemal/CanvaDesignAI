@@ -6,6 +6,7 @@ import pytest
 from src.brand_profiles import load_brand
 from src.generator import generate_prompt
 from src.schema import PromptValidationError
+from src.style_presets import load_style
 
 BRIEF = {
     "aspect_ratio": "1:1 (1080x1080)",
@@ -185,3 +186,42 @@ def test_generate_prompt_embeds_brand_visual_identity_in_image_steering():
     system_msg = client.captured_kwargs["messages"][0]["content"]
     assert "BRAND VISUAL IDENTITY" in system_msg
     assert "warm oak wood grain" in system_msg  # texture cue must reach the image prompt
+
+
+# A card whose magic_media_prompt actually contains the neo-grunge required
+# keywords AND references text_zone 'top', with a high-contrast monochrome+neon
+# palette so it also passes the contrast check.
+STYLE_CARD = json.loads(json.dumps(VALID_CARD))
+STYLE_CARD["magic_media_prompt"] = (
+    "High contrast monochromatic black and white base of a lone figure, deep shadows, "
+    "distressed grunge texture, a single vibrant neon green spray paint accent, edgy "
+    "underground aesthetic, vast dark negative space at the top for bold typography."
+)
+STYLE_CARD["layer_typography_architecture"]["color_palette"] = ["#0A0A0A", "#F5F5F5", "#39FF14"]
+STYLE_CARD["layer_typography_architecture"]["background_layers"] = (
+    "image fills the frame; dark panel behind the top carries the headline/subtext"
+)
+
+
+def test_generate_prompt_injects_style_preset_block():
+    style = load_style("neo-grunge-streetwear")
+    client = _FakeOpenAIClient(json.dumps(STYLE_CARD))
+    generate_prompt(BRIEF, concept="Underground gig poster", style=style, client=client)
+    system_msg = client.captured_kwargs["messages"][0]["content"]
+    assert "ELITE STYLE PRESET" in system_msg
+    assert "distressed grunge texture" in system_msg  # verbatim keyword block
+
+
+def test_generate_prompt_accepts_card_that_carries_required_style_keywords():
+    style = load_style("neo-grunge-streetwear")
+    client = _FakeOpenAIClient(json.dumps(STYLE_CARD))
+    card = generate_prompt(BRIEF, concept="Underground gig poster", style=style, client=client)
+    assert "distressed grunge texture" in card["magic_media_prompt"]
+
+
+def test_generate_prompt_rejects_card_missing_required_style_keyword():
+    style = load_style("neo-grunge-streetwear")
+    off_style = json.loads(json.dumps(VALID_CARD))  # generic prompt, no grunge keywords
+    client = _FakeOpenAIClient(json.dumps(off_style))
+    with pytest.raises(PromptValidationError, match="style keyword"):
+        generate_prompt(BRIEF, concept="Underground gig poster", style=style, client=client)

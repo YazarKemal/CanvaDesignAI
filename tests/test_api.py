@@ -35,7 +35,7 @@ def test_health():
 
 
 def test_chat_returns_card(monkeypatch):
-    monkeypatch.setattr(api, "run_pipeline", lambda message, brand=None, max_attempts=3: _fake_result())
+    monkeypatch.setattr(api, "run_pipeline", lambda message, brand=None, style=None, max_attempts=3: _fake_result())
 
     resp = client.post("/api/chat", json={"message": "Kafe acilisi icin Instagram gonderisi"})
 
@@ -56,7 +56,7 @@ def test_chat_rejects_empty_message():
 
 
 def test_chat_surfaces_pipeline_error_as_502(monkeypatch):
-    def boom(message, brand=None, max_attempts=3):
+    def boom(message, brand=None, style=None, max_attempts=3):
         raise RuntimeError("deepseek down")
 
     monkeypatch.setattr(api, "run_pipeline", boom)
@@ -68,7 +68,7 @@ def test_chat_surfaces_pipeline_error_as_502(monkeypatch):
 def test_chat_surfaces_validation_exhaustion_as_502(monkeypatch):
     from src.orchestrator import PipelineError
 
-    def boom(message, brand=None, max_attempts=3):
+    def boom(message, brand=None, style=None, max_attempts=3):
         raise PipelineError("Generator failed to produce a valid card in 3 attempts.")
 
     monkeypatch.setattr(api, "run_pipeline", boom)
@@ -80,7 +80,7 @@ def test_chat_surfaces_validation_exhaustion_as_502(monkeypatch):
 def test_chat_unknown_brand_returns_404(monkeypatch):
     from src.brand_profiles import BrandNotFoundError
 
-    def boom(message, brand=None, max_attempts=3):
+    def boom(message, brand=None, style=None, max_attempts=3):
         raise BrandNotFoundError(f"No brand profile named '{brand}'.")
 
     monkeypatch.setattr(api, "run_pipeline", boom)
@@ -93,6 +93,28 @@ def test_get_brands_lists_example_brand():
     assert resp.status_code == 200
     slugs = [b["slug"] for b in resp.json()["brands"]]
     assert "example-cafe" in slugs
+
+
+def test_get_styles_lists_elite_presets():
+    resp = client.get("/api/styles")
+    assert resp.status_code == 200
+    styles = resp.json()["styles"]
+    slugs = {s["slug"] for s in styles}
+    assert {"neo-grunge-streetwear", "holographic-glassmorphism", "corporate-dynamic-vector"} <= slugs
+    # each carries a human-readable name + description for the picker
+    for s in styles:
+        assert s["name"] and s["description"]
+
+
+def test_chat_unknown_style_returns_404(monkeypatch):
+    from src.style_presets import StyleNotFoundError
+
+    def boom(message, brand=None, style=None, max_attempts=3):
+        raise StyleNotFoundError(f"No style preset named '{style}'.")
+
+    monkeypatch.setattr(api, "run_pipeline", boom)
+    resp = client.post("/api/chat", json={"message": "a poster", "style": "does-not-exist"})
+    assert resp.status_code == 404
 
 
 def test_adapt_returns_variants(monkeypatch):
@@ -115,7 +137,7 @@ def test_adapt_returns_variants(monkeypatch):
 def test_adapt_unknown_format_returns_400(monkeypatch):
     from src.omni_channel import UnknownFormatError
 
-    def boom(base_card, formats, *, brand=None, **kw):
+    def boom(base_card, formats, *, brand=None, style=None, **kw):
         raise UnknownFormatError("Unknown target format 'nope'.")
 
     monkeypatch.setattr(api, "generate_omni_channel_set", boom)
@@ -133,7 +155,7 @@ def test_adapt_unknown_brand_returns_404():
 def test_adapt_validation_failure_returns_502(monkeypatch):
     from src.schema import PromptValidationError
 
-    def boom(base_card, formats, *, brand=None, **kw):
+    def boom(base_card, formats, *, brand=None, style=None, **kw):
         raise PromptValidationError("Adaptation never passed validation.")
 
     monkeypatch.setattr(api, "generate_omni_channel_set", boom)

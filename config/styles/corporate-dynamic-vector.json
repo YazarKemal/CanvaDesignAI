@@ -1,0 +1,14 @@
+{
+  "slug": "corporate-dynamic-vector",
+  "name": "Corporate Dynamic Vector",
+  "description": "Ultra-clean modern corporate look: smooth gradient background, sharp 3D vector wave elements at the borders, and a highly isolated subject.",
+  "recommended_magic_media_style": "Flat Vector",
+  "magic_media_keywords": "Ultra-clean modern corporate aesthetic, smooth gradient background, sharp 3D vector wave elements at the borders, brilliant softbox lighting, highly isolated subject, professional agency presentation style.",
+  "required_keywords": [
+    "modern corporate aesthetic",
+    "3D vector wave elements",
+    "softbox lighting",
+    "highly isolated subject"
+  ],
+  "palette_hint": "clean corporate gradient (e.g. #0057FF to #00B4D8) anchored with a near-white (#F8FAFC) for legible contrast"
+}

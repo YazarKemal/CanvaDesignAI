@@ -1,0 +1,79 @@
+"""Loader for elite aesthetic style presets (config/styles/<slug>.json).
+
+Mirrors src/brand_profiles.py's loader pattern, but style presets are
+orthogonal to brands: a brand locks a design's fonts/colors, while a style
+preset injects a fixed block of elite photographic/textural keywords into
+`magic_media_prompt` (inspired by top-tier Canva creators). Both can be
+active at once — a brand constrains typography/palette, a style steers the
+image's look and feel.
+
+Each preset carries:
+- `magic_media_keywords`: the exact keyword block the Generator must weave
+  into magic_media_prompt.
+- `required_keywords`: the distinctive substrings src/schema.py enforces at
+  the code level (retried if missing), so the style is guaranteed to land in
+  the image prompt rather than being silently paraphrased away.
+- `recommended_magic_media_style` / `palette_hint`: soft steering for the
+  Architect/Generator.
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+
+STYLES_DIR = Path(__file__).resolve().parent.parent / "config" / "styles"
+
+
+class StyleNotFoundError(ValueError):
+    pass
+
+
+def load_style(slug: str, *, styles_dir: Path | str = STYLES_DIR) -> dict[str, Any]:
+    """Load a style preset by slug. Raises StyleNotFoundError if missing."""
+    path = Path(styles_dir) / f"{slug}.json"
+    if not path.exists():
+        available = ", ".join(list_styles(styles_dir=styles_dir)) or "(none configured)"
+        raise StyleNotFoundError(f"No style preset named '{slug}'. Available: {available}")
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def list_styles(*, styles_dir: Path | str = STYLES_DIR) -> list[str]:
+    """List available style preset slugs (config/styles/*.json, sorted)."""
+    path = Path(styles_dir)
+    if not path.exists():
+        return []
+    return sorted(p.stem for p in path.glob("*.json"))
+
+
+def required_keywords(style: dict[str, Any]) -> list[str]:
+    """The distinctive substrings that MUST appear in magic_media_prompt."""
+    return list(style.get("required_keywords", []))
+
+
+def as_prompt_block(style: dict[str, Any]) -> str:
+    """Render a style preset as a mandatory image-prompt directive."""
+    lines = [
+        f"ELITE STYLE PRESET — '{style['name']}' (mandatory image direction). The "
+        "magic_media_prompt MUST weave in these exact photographic and textural "
+        "keywords, verbatim, so the generated image lands this look:",
+        f"  {style['magic_media_keywords']}",
+    ]
+    if style.get("recommended_magic_media_style"):
+        lines.append(
+            f"- Set layer_typography_architecture.magic_media_style to "
+            f"'{style['recommended_magic_media_style']}'."
+        )
+    if style.get("palette_hint"):
+        lines.append(
+            f"- Palette guidance (still emit real HEX with a valid contrast anchor): "
+            f"{style['palette_hint']}."
+        )
+    lines.append(
+        "- Any negative-space wording in these keywords must defer to the brief's "
+        "text_zone — reserve that empty space at the text_zone location, not "
+        "wherever the preset's example phrasing suggests."
+    )
+    return "\n".join(lines)

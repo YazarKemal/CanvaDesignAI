@@ -1,0 +1,14 @@
+{
+  "slug": "neo-grunge-streetwear",
+  "name": "Neo-Grunge Streetwear",
+  "description": "High-contrast monochrome grunge with a single vibrant neon spot color and vast dark negative space for bold typography.",
+  "recommended_magic_media_style": "Photographic",
+  "magic_media_keywords": "High contrast monochromatic black and white base, deep shadows, distressed grunge texture, stark juxtaposition, featuring a single vibrant neon spot color (e.g., neon green spray paint or neon accent), edgy underground aesthetic, vast dark negative space for bold typography.",
+  "required_keywords": [
+    "distressed grunge texture",
+    "high contrast monochromatic",
+    "neon",
+    "negative space"
+  ],
+  "palette_hint": "monochrome black/white base (#0A0A0A near-black, #F5F5F5 near-white) plus one high-chroma neon accent (e.g. #39FF14)"
+}

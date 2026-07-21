@@ -44,14 +44,23 @@ class UnknownFormatError(ValueError):
     pass
 
 
-def _system_prompt(target_format: str, aspect_ratio: str) -> str:
+def _system_prompt(target_format: str, aspect_ratio: str, style: dict[str, Any] | None = None) -> str:
+    style_section = ""
+    if style is not None:
+        required = ", ".join(f"'{k}'" for k in style.get("required_keywords", []))
+        style_section = (
+            f"\n\nThe base design uses the '{style['name']}' elite style preset. Its "
+            f"signature keywords MUST be preserved verbatim in your rewritten "
+            f"magic_media_prompt (do not drop them): {required}.\n"
+        )
     return (
         "You are the Layout Adaptive Engine inside CaVDesign. You are given an "
         "ALREADY APPROVED Canva card and must adapt it to a new format: "
         f"'{target_format}' at aspect ratio {aspect_ratio}. Reply with a single "
         "JSON object and NOTHING else — no greeting, no prose, no markdown "
         "fences, no questions back to the user.\n\n"
-        f"{composition_prompt_block(aspect_ratio)}\n\n"
+        f"{composition_prompt_block(aspect_ratio)}"
+        f"{style_section}\n\n"
         "HARD RULES:\n"
         "- concept, headline, subtext, color_palette, fonts, negative_prompt, "
         "and canva_keywords are FIXED — do not change them, do not repeat them "
@@ -63,9 +72,10 @@ def _system_prompt(target_format: str, aspect_ratio: str) -> str:
         "zone than a 1:1 square).\n"
         "  2. magic_media_prompt — rewrite ONLY the composition/framing for "
         "the new aspect ratio per the composition rules above (leading lines, "
-        "depth, lighting), keeping the same subject, medium, mood, and color "
-        "palette. MUST reserve negative space per the chosen text_zone and "
-        "mention that location in plain English, matching rule #1.\n"
+        "depth, lighting), keeping the same subject, medium, mood, color "
+        "palette, and any elite style keywords. MUST reserve negative space per "
+        "the chosen text_zone and mention that location in plain English, "
+        "matching rule #1.\n"
         "  3. background_layers — how the image and typography layers stack "
         "for this format; MUST also mention the same text_zone location.\n"
         "  4. direct_action_tip — an ordered array of 2-5 concrete Canva steps "
@@ -134,15 +144,17 @@ def adapt_to_format(
     target_format: str,
     *,
     brand: dict[str, Any] | None = None,
+    style: dict[str, Any] | None = None,
     model: str = DEFAULT_MODEL,
     client: Any = None,
 ) -> dict[str, Any]:
     """Adapt `base_card` (an already-approved card) to `target_format`.
 
-    Returns a new, fully validated card for that format. Raises
-    UnknownFormatError for an unrecognized format name, or
-    PromptValidationError if the adaptation never passes validation within
-    MAX_ADAPT_ATTEMPTS lightweight local retries.
+    Returns a new, fully validated card for that format. If `style` is given,
+    the adapter is reminded to preserve the preset's signature keywords and
+    the variant is validated against them. Raises UnknownFormatError for an
+    unrecognized format name, or PromptValidationError if the adaptation never
+    passes validation within MAX_ADAPT_ATTEMPTS lightweight local retries.
     """
     if target_format not in TARGET_FORMATS:
         raise UnknownFormatError(
@@ -164,7 +176,7 @@ def adapt_to_format(
         response = client.chat.completions.create(
             model=model,
             messages=[
-                {"role": "system", "content": _system_prompt(target_format, aspect_ratio)},
+                {"role": "system", "content": _system_prompt(target_format, aspect_ratio, style)},
                 {"role": "user", "content": message},
             ],
             temperature=0.3,
@@ -174,7 +186,7 @@ def adapt_to_format(
         try:
             adapted = extract_json(raw_text)
             variant = _merge_variant(base_card, target_format, adapted)
-            validate_prompt(variant, brand=brand)
+            validate_prompt(variant, brand=brand, style=style)
             return variant
         except (json.JSONDecodeError, KeyError, PromptValidationError) as exc:
             last_error = exc if isinstance(exc, PromptValidationError) else PromptValidationError(str(exc))
@@ -188,10 +200,12 @@ def generate_omni_channel_set(
     formats: list[str],
     *,
     brand: dict[str, Any] | None = None,
+    style: dict[str, Any] | None = None,
     model: str = DEFAULT_MODEL,
     client: Any = None,
 ) -> dict[str, dict[str, Any]]:
     """Adapt `base_card` to each format in `formats`. Returns {format: card}."""
     return {
-        fmt: adapt_to_format(base_card, fmt, brand=brand, model=model, client=client) for fmt in formats
+        fmt: adapt_to_format(base_card, fmt, brand=brand, style=style, model=model, client=client)
+        for fmt in formats
     }

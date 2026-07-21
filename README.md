@@ -130,6 +130,24 @@ into `magic_media_prompt` itself, so the **generated image** reads on-brand
 the typography overlay. See
 [`config/brands/example-cafe.json`](config/brands/example-cafe.json).
 
+**Elite Style Presets** (`config/styles/<slug>.json`, loaded by
+`src/style_presets.py`) are orthogonal to brands: a brand locks
+typography/palette, a style preset injects a fixed block of elite
+photographic/textural keywords (inspired by top-tier Canva creators) into
+`magic_media_prompt`. Pass `--style <slug>` (CLI) or `style` (API/UI); the
+preset steers the Architect's art direction and is injected into the
+Generator, and `src/schema.py` **hard-enforces** each preset's
+`required_keywords` in the image prompt (retried like brand/contrast/
+text_zone) so the look is guaranteed to land rather than being paraphrased
+away. Any negative-space wording in a preset defers to the brief's
+`text_zone`, and Omni-Channel adaptation preserves the keywords while the
+zone reconciler re-points the reserved space — so styles combine cleanly
+with the format/zone logic. Ships with three presets:
+[`neo-grunge-streetwear`](config/styles/neo-grunge-streetwear.json),
+[`holographic-glassmorphism`](config/styles/holographic-glassmorphism.json),
+and [`corporate-dynamic-vector`](config/styles/corporate-dynamic-vector.json).
+A brand and a style may both be active.
+
 **Critic = the existing Reviewer, extended — not a new stage.** Rather than
 add a separate fourth LLM call, `design_rules.json`'s rubric gained a
 `brand_fit` criterion that the same Reviewer call already scores (zero
@@ -154,6 +172,7 @@ buttons that append the adapted variant as a new terminal-log entry.
 
 ```bash
 python main.py "Grand Opening Cafe" --brand example-cafe
+python main.py "Underground Gig" --style neo-grunge-streetwear
 python main.py "Grand Opening Cafe" --adapt-to instagram_story,banner
 ```
 
@@ -201,7 +220,7 @@ cd web && cp .env.example .env.local && npm install && npm run dev
 
 ```bash
 pip install -r requirements.txt pytest
-pytest                        # 141 tests, fully offline (mocked DeepSeek/HTTP)
+pytest                        # 158 tests, fully offline (mocked DeepSeek/HTTP)
 
 cd web && npm run typecheck && npm run build
 ```
