@@ -59,6 +59,7 @@ class ChatResponse(BaseModel):
     paste_text: str
     contrast_ratio: float
     text_zone: str
+    selected_style_name: str | None = None
 
 
 class BrandSummary(BaseModel):
@@ -178,6 +179,15 @@ def chat(request: ChatRequest) -> ChatResponse:
 
     _a, _b, ratio = best_contrast_pair(result.card["layer_typography_architecture"]["color_palette"])
 
+    # Resolve the selected style name (manual override or Architect auto-pick).
+    selected_style_name: str | None = None
+    style_slug = request.style or result.brief.get("selected_style_id")
+    if style_slug:
+        try:
+            selected_style_name = load_style(style_slug)["name"]
+        except StyleNotFoundError:
+            selected_style_name = style_slug  # fallback: show the slug itself
+
     return ChatResponse(
         card=result.card,
         approved=result.approved,
@@ -186,6 +196,7 @@ def chat(request: ChatRequest) -> ChatResponse:
         paste_text=render_for_assistant_paste(result.card),
         contrast_ratio=round(ratio, 1),
         text_zone=result.card["text_zone"],
+        selected_style_name=selected_style_name,
     )
 
 

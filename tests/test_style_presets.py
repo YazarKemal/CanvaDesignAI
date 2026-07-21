@@ -284,3 +284,37 @@ def test_as_prompt_block_without_override_brand_omits_hierarchy_directive():
     assert "ELITE STYLE PRESET" in block
     assert "STYLE OVERRIDE RULE" not in block
     assert "REPLACES and OVERRIDES" not in block
+
+
+def test_every_preset_has_best_for():
+    """Every style preset must carry a non-empty best_for one-liner so the
+    Architect can auto-select the best-fit style for any user concept."""
+    from src.style_presets import best_for_summaries
+
+    for slug in EXPECTED_SLUGS:
+        style = load_style(slug)
+        best = style.get("best_for", "")
+        assert isinstance(best, str), f"{slug}: best_for must be a string"
+        assert len(best.strip()) >= 10, (
+            f"{slug}: best_for is too short ('{best}') — must be a meaningful "
+            "one-sentence use-case description"
+        )
+
+    # best_for_summaries() must include every slug
+    summaries = best_for_summaries()
+    for slug in EXPECTED_SLUGS:
+        assert slug in summaries, f"{slug} missing from best_for_summaries() output"
+
+
+def test_best_for_summaries_includes_all_presets():
+    """best_for_summaries() output must contain every preset slug and its
+    best_for text so the Architect has the full menu."""
+    from src.style_presets import best_for_summaries
+
+    summaries = best_for_summaries()
+    assert len(summaries) > 0
+    # Should have one line per preset
+    lines = [l for l in summaries.split("\n") if l.startswith("- ")]
+    assert len(lines) == len(EXPECTED_SLUGS), (
+        f"Expected {len(EXPECTED_SLUGS)} lines, got {len(lines)}"
+    )

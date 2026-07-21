@@ -49,12 +49,10 @@ export interface ChatResponse {
   approved: boolean;
   score: number;
   attempts: number;
-  // Plain-text block (directive + full card) ready to paste into a
-  // Claude/ChatGPT chat that has a Canva tool connected.
   paste_text: string;
-  // Best available WCAG contrast ratio within color_palette (>= 4.5 = AA).
   contrast_ratio: number;
   text_zone: TextZone;
+  selected_style_name?: string | null;
 }
 
 // One entry in the terminal log: either a rendered card or an error line.
@@ -67,9 +65,8 @@ export interface LogEntry {
   pasteText?: string;
   contrastRatio?: number;
   error?: string;
-  // Set on an entry that was produced by "adapt to other formats" rather
-  // than a fresh chat request -- lets the card omit its own format button.
   sourceFormat?: TargetFormat;
+  selectedStyleName?: string | null;
 }
 
 export interface Brand {

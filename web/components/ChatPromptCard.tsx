@@ -240,6 +240,12 @@ export function ChatPromptCard({
         <span className="shrink-0 text-xs text-zinc-600">[{status}]</span>
       </div>
 
+      {entry.selectedStyleName && (
+        <p className="mt-1 text-xs text-zinc-500">
+          Style: {entry.selectedStyleName}
+        </p>
+      )}
+
       <CardBody
         card={card}
         pasteText={entry.pasteText}

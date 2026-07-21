@@ -78,3 +78,44 @@ def test_build_brief_steers_art_direction_with_aesthetic_taxonomy():
     system_msg = client.captured_kwargs["messages"][0]["content"]
     assert "professional design taxonomy" in system_msg
     assert "never" in system_msg.lower() and "generic adjectives" in system_msg
+
+
+def test_build_brief_without_manual_style_includes_auto_style_menu():
+    """When no style is manually selected, the Architect's system prompt must
+    include the AVAILABLE STYLE PRESETS menu so it can auto-pick a style."""
+    client = _FakeOpenAIClient(json.dumps(BRIEF))
+    build_brief("a coffee shop instagram post", client=client)
+    system_msg = client.captured_kwargs["messages"][0]["content"]
+    assert "AVAILABLE STYLE PRESETS" in system_msg
+    assert "selected_style_id" in system_msg
+    # The menu should list multiple presets
+    assert "warm-editorial-minimalist" in system_msg
+    assert "bauhaus-modernist-poster" in system_msg
+
+
+def test_build_brief_with_manual_style_omits_auto_style_menu():
+    """When a manual style IS selected, the auto-selection menu must NOT
+    appear — user override takes precedence."""
+    from src.style_presets import load_style
+
+    style = load_style("kodachrome-americana")
+    client = _FakeOpenAIClient(json.dumps(BRIEF))
+    build_brief("a travel post", style=style, client=client)
+    system_msg = client.captured_kwargs["messages"][0]["content"]
+    assert "AVAILABLE STYLE PRESETS" not in system_msg
+    assert "ELITE STYLE PRESET" in system_msg  # manual style block is shown
+    # The requirement #9 must not reference the auto-selection menu
+    assert "from the AVAILABLE STYLE PRESETS list above" not in system_msg
+
+
+def test_build_brief_output_includes_selected_style_id():
+    """The Architect's brief output MUST include a selected_style_id field
+    when auto-style is active, matching one of the available preset slugs."""
+    from src.style_presets import list_styles
+
+    # Make a brief that includes a valid selected_style_id
+    brief_with_style = dict(BRIEF, selected_style_id="warm-editorial-minimalist")
+    client = _FakeOpenAIClient(json.dumps(brief_with_style))
+    brief = build_brief("a calm lifestyle carousel", client=client)
+    assert "selected_style_id" in brief
+    assert brief["selected_style_id"] in list_styles()

@@ -92,9 +92,19 @@ def run_pipeline(
     reviewer_kwargs = reviewer_kwargs or {}
 
     brand_profile = load_brand(brand) if brand else None
-    style_preset = load_style(style) if style else None
 
+    # Style resolution: manual override takes precedence over auto-selection.
+    style_preset = load_style(style) if style else None
     brief = build_brief(concept, brand=brand_profile, style=style_preset, **architect_kwargs)
+
+    # If the user didn't pick a style, the Architect chose one automatically.
+    if style_preset is None:
+        auto_style_id = brief.get("selected_style_id")
+        if auto_style_id:
+            try:
+                style_preset = load_style(auto_style_id)
+            except Exception:
+                style_preset = None  # invalid slug → continue without style
 
     history: list[dict[str, Any]] = []
     best_card: dict[str, Any] | None = None

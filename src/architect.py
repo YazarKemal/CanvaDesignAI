@@ -22,7 +22,7 @@ except ImportError:
 from src.brand_profiles import as_prompt_block as brand_prompt_block
 from src.canva_rules import CANVA_KNOWLEDGE_BASE, detect_category, dimensions_for
 from src.llm_json import extract_json
-from src.style_presets import as_prompt_block as style_prompt_block
+from src.style_presets import as_prompt_block as style_prompt_block, best_for_summaries
 
 DEFAULT_MODEL = "deepseek-chat"
 DEFAULT_BASE_URL = "https://api.deepseek.com"
@@ -40,31 +40,70 @@ BRIEF_SCHEMA_HINT = {
     },
     "canva_keywords": ["flat vector illustration", "isolated element on transparent background"],
     "negative_constraints": "reserve empty negative space at the top for the headline/subtext layer; no embedded text, no clutter",
+    "selected_style_id": "warm-editorial-minimalist",
 }
+
+
+def _style_selection_rule(style: dict[str, Any] | None) -> str:
+    """Return the style-selection requirement line for the brief template.
+
+    When no manual style was chosen (*style* is None) the Architect must
+    auto-select a preset from the menu shown above.  When a manual style IS
+    active the Architect simply confirms that slug — no menu, no extra choice.
+    """
+    if style is None:
+        return (
+            "\n9. selected_style_id — the slug of the ONE style preset (from the "
+            "AVAILABLE STYLE PRESETS list above) whose best_for description best "
+            "matches the user's request spirit, use-case, and mood. The art_direction "
+            "you choose must be consistent with this preset's palette_hint and "
+            "recommended_magic_media_style."
+        )
+    return (
+        "\n9. selected_style_id — set this to the slug of the active style "
+        "preset you were given above. Do NOT auto-select a different style; "
+        "the user has already chosen one explicitly."
+    )
 
 
 def _system_prompt(
     brand: dict[str, Any] | None = None, style: dict[str, Any] | None = None
 ) -> str:
     kb = json.dumps(CANVA_KNOWLEDGE_BASE, ensure_ascii=False, indent=2)
-    style_section = (
-        f"\n\n{style_prompt_block(style)}\n\nBecause a style preset is active: set "
-        "art_direction.mood, lighting and magic_media_style to align with this "
-        "preset, and pick a color_palette consistent with its palette guidance."
-        if style is not None
-        else ""
-    )
+
+    # -- Manual style override (user picked one in the UI) ------------------
+    style_section = ""
+    if style is not None:
+        style_section = (
+            f"\n\n{style_prompt_block(style)}\n\nBecause a style preset is active: set "
+            "art_direction.mood, lighting and magic_media_style to align with this "
+            "preset, and pick a color_palette consistent with its palette guidance."
+        )
+
+    # -- Auto style selection (no manual override → Architect picks best fit)
+    auto_style_section = ""
+    if style is None:
+        summaries = best_for_summaries()
+        auto_style_section = (
+            "\n\nAVAILABLE STYLE PRESETS (pick exactly ONE whose best_for "
+            "description best matches the spirit and use-case of the user's "
+            "request — set selected_style_id to its slug):\n"
+            f"{summaries}\n"
+        )
+
+    # -- Brand section ------------------------------------------------------
     brand_section = ""
     if brand is not None:
         zone = brand.get("logo", {}).get("placement_zone", "")
         brand_section = (
             f"\n\n{brand_prompt_block(brand)}\n\n"
-            "9. Because a brand profile is active: art_direction.color_palette "
+            "10. Because a brand profile is active: art_direction.color_palette "
             "MUST be chosen only from this brand's approved_colors (do not "
             "invent new HEX values), and text_zone MUST avoid the brand's logo "
             f"placement_zone ('{zone}') so the headline/subtext never overlaps "
             "the logo."
         )
+
     return (
         "Sen Canva Tasarim Mimarisin (Canva Design Architect), bir otomasyon "
         "motorunun ilk asamasisin. Kullanicinin istegini analiz et ve Canva'nin "
@@ -77,7 +116,8 @@ def _system_prompt(
         "- If the request is ambiguous, make the most Canva-sensible "
         "assumption yourself and proceed. Never ask for clarification.\n\n"
         "CANVA KNOWLEDGE BASE (use these exact dimensions, styles and keywords):\n"
-        f"{kb}\n\n"
+        f"{kb}"
+        f"{auto_style_section}\n"
         "Your brief MUST include, at minimum:\n"
         "1. detected_category — one of the knowledge-base dimension keys.\n"
         "2. aspect_ratio — the matching canvas size (e.g. '1:1 (1080x1080)').\n"
@@ -98,6 +138,7 @@ def _system_prompt(
         "7. canva_keywords — 2-4 items drawn from canva_element_keywords.\n"
         "8. negative_constraints — MUST enforce deliberate negative space at "
         "text_zone's location and exclude embedded text."
+        f"{_style_selection_rule(style)}"
         f"{style_section}"
         f"{brand_section}\n\n"
         "Example shape (values illustrative only):\n"

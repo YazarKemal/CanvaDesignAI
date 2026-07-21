@@ -74,6 +74,7 @@ export default function Home() {
             score: payload.score,
             pasteText: payload.paste_text,
             contrastRatio: payload.contrast_ratio,
+            selectedStyleName: payload.selected_style_name ?? null,
           },
         ]);
       }
@@ -158,7 +159,12 @@ export default function Home() {
             disabled={loading}
           />
           <BrandSelect selected={brand} onChange={setBrand} />
-          <StyleSelect selected={style} onChange={setStyle} />
+          <details className="mt-2 text-xs text-zinc-600">
+            <summary className="cursor-pointer select-none hover:text-zinc-400 transition-colors">
+              Gelişmiş: stili elle seç
+            </summary>
+            <StyleSelect selected={style} onChange={setStyle} />
+          </details>
         </div>
 
         {/* Terminal log — flows top to bottom, left-bordered entries */}

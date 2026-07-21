@@ -53,6 +53,28 @@ def required_keywords(style: dict[str, Any]) -> list[str]:
     return list(style.get("required_keywords", []))
 
 
+def best_for_summaries(*, styles_dir: Path | str = STYLES_DIR) -> str:
+    """Render all preset slugs with their `best_for` one-liners for the
+    Architect's system prompt, so the Architect can auto-select the most
+    appropriate style preset for the user's concept without an extra LLM call.
+
+    Returns a compact bullet list suitable for injection into a prompt.
+    """
+    lines: list[str] = []
+    for slug in list_styles(styles_dir=styles_dir):
+        try:
+            style = load_style(slug, styles_dir=styles_dir)
+        except StyleNotFoundError:
+            continue
+        best = style.get("best_for", "")
+        name = style.get("name", slug)
+        if best:
+            lines.append(f"- {slug}: {best}")
+        else:
+            lines.append(f"- {slug}: {name}")
+    return "\n".join(lines)
+
+
 def as_prompt_block(
     style: dict[str, Any], *, override_brand: bool = False
 ) -> str:
