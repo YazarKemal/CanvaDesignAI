@@ -90,28 +90,62 @@ def test_adapt_to_format_unknown_format_raises():
         adapt_to_format(base, "tiktok-does-not-exist", client=_FakeClient([]))
 
 
-def test_adapt_to_format_retries_once_on_zone_inconsistency_then_succeeds():
+def test_adapt_to_format_auto_corrects_zone_mismatch_without_retry():
+    # The adaptation changed text_zone to 'center' but its prompt never mentions
+    # 'center'. This used to hard-fail validation and burn a retry; it is now
+    # reconciled deterministically on the first attempt.
     base = _load_base_card()
-    broken = dict(VALID_STORY_ADAPTATION)
-    broken["magic_media_prompt"] = "A prompt that forgot to mention the zone at all."
-    client = _FakeClient([json.dumps(broken), json.dumps(VALID_STORY_ADAPTATION)])
+    mismatched = dict(VALID_STORY_ADAPTATION)
+    mismatched["text_zone"] = "center"
+    mismatched["magic_media_prompt"] = (
+        "A minimalist 3d flat vector illustration for a specialty coffee shop grand "
+        "opening, earthy terracotta and warm cream palette, isolated on a plain background."
+    )
+    mismatched["background_layers"] = "generated image fills the frame behind the copy"
+    client = _FakeClient([json.dumps(mismatched)])
 
     variant = adapt_to_format(base, "instagram_story", client=client)
 
     assert variant["text_zone"] == "center"
-    assert len(client.calls) == 2
-    # Second call's user message should include feedback about the failure.
-    assert "rejected" in client.calls[1]["messages"][1]["content"].lower()
+    assert len(client.calls) == 1  # no retry needed — healed in place
+    assert "center" in variant["magic_media_prompt"].lower()
+    assert "center" in variant["layer_typography_architecture"]["background_layers"].lower()
 
 
-def test_adapt_to_format_raises_after_exhausting_attempts():
+def test_adapt_to_format_rewrites_stale_zone_direction_in_prompt():
+    # Prompt reused the OLD 'top' negative-space wording while the new zone is
+    # 'bottom' — the direction must be rewritten, not just appended to.
     base = _load_base_card()
-    broken = dict(VALID_STORY_ADAPTATION)
-    broken["magic_media_prompt"] = "Never mentions any zone keyword."
-    client = _FakeClient([json.dumps(broken), json.dumps(broken)])
+    stale = dict(VALID_STORY_ADAPTATION)
+    stale["text_zone"] = "bottom"
+    stale["magic_media_prompt"] = (
+        "A minimalist 3d flat vector illustration for a specialty coffee shop grand "
+        "opening, top-down espresso cup, ample negative space at the top for overlaying "
+        "text in Canva, isolated on a plain background."
+    )
+    stale["background_layers"] = "cream panel reserved in the top band carries the headline"
+    client = _FakeClient([json.dumps(stale)])
+
+    variant = adapt_to_format(base, "instagram_story", client=client)
+
+    prompt = variant["magic_media_prompt"]
+    assert "negative space at the bottom" in prompt
+    assert "negative space at the top" not in prompt
+    # The unrelated camera-angle phrase must be preserved.
+    assert "top-down espresso cup" in prompt
+
+
+def test_adapt_to_format_retries_then_raises_on_unhealable_failure():
+    # A forbidden chat phrase is NOT something zone-reconciliation can fix, so
+    # the retry-then-raise path still works for genuine validation failures.
+    base = _load_base_card()
+    chatty = dict(VALID_STORY_ADAPTATION)
+    chatty["direct_action_tip"] = ["Sure, here is your story layout.", "Add a heading."]
+    client = _FakeClient([json.dumps(chatty), json.dumps(chatty)])
 
     with pytest.raises(PromptValidationError):
         adapt_to_format(base, "instagram_story", client=client)
+    assert len(client.calls) == 2  # exhausted both attempts
 
 
 def test_generate_omni_channel_set_calls_adapt_for_each_format():

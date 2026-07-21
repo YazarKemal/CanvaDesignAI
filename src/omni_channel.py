@@ -24,6 +24,7 @@ except ImportError:
     OpenAI = None  # type: ignore[assignment]
 
 from src.canva_rules import CANVA_KNOWLEDGE_BASE
+from src.composition_rules import align_zone_language
 from src.composition_rules import as_prompt_block as composition_prompt_block
 from src.llm_json import extract_json
 from src.schema import PromptValidationError, validate_prompt
@@ -91,10 +92,28 @@ def _base_fields_message(base_card: dict[str, Any]) -> str:
 
 def _merge_variant(base_card: dict[str, Any], target_format: str, adapted: dict[str, Any]) -> dict[str, Any]:
     card = json.loads(json.dumps(base_card))  # deep copy
+    zone = adapted["text_zone"]
     card["aspect_ratio"] = TARGET_FORMATS[target_format]
-    card["text_zone"] = adapted["text_zone"]
-    card["magic_media_prompt"] = adapted["magic_media_prompt"]
-    card["layer_typography_architecture"]["background_layers"] = adapted["background_layers"]
+    card["text_zone"] = zone
+    # The adaptation may have picked a NEW text_zone while leaving the old
+    # zone's spatial wording in the reused prose. Reconcile the negative-space
+    # direction in both the image prompt and the layer description so they
+    # match the new zone before validation runs (fixes the class of
+    # "text_zone is 'bottom' but magic_media_prompt never mentions 'bottom'"
+    # failures deterministically, instead of relying on an LLM retry).
+    card["magic_media_prompt"] = align_zone_language(
+        adapted["magic_media_prompt"],
+        zone,
+        append_clause=(
+            f"with deliberate negative space reserved at the {zone} of the frame "
+            "for the typography overlay"
+        ),
+    )
+    card["layer_typography_architecture"]["background_layers"] = align_zone_language(
+        adapted["background_layers"],
+        zone,
+        append_clause=f"the headline and subtext occupy the reserved {zone} zone",
+    )
     card["direct_action_tip"] = adapted["direct_action_tip"]
     return card
 

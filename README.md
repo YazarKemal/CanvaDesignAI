@@ -143,9 +143,14 @@ automatically, and not by re-running the full pipeline. One small "Adapter"
 DeepSeek call holds the concept/headline/subtext/palette/fonts fixed and
 only re-derives `text_zone`, `magic_media_prompt`'s composition,
 `background_layers`, and `direct_action_tip` for the new aspect ratio; the
-result passes through the same `validate_prompt` as everything else. In the
-UI, each card gets `[ story ] [ post ] [ banner ]` buttons that append the
-adapted variant as a new terminal-log entry.
+result passes through the same `validate_prompt` as everything else. When an
+adaptation changes the `text_zone`, `composition_rules.align_zone_language`
+deterministically rewrites the negative-space direction in the reused prose
+(e.g. "negative space at the **top**" → "at the **bottom**") so it matches
+the new zone — leaving unrelated directions like the "top-down" camera angle
+or the subject's own placement untouched — instead of relying on an LLM retry
+to self-correct. In the UI, each card gets `[ story ] [ post ] [ banner ]`
+buttons that append the adapted variant as a new terminal-log entry.
 
 ```bash
 python main.py "Grand Opening Cafe" --brand example-cafe
@@ -196,7 +201,7 @@ cd web && cp .env.example .env.local && npm install && npm run dev
 
 ```bash
 pip install -r requirements.txt pytest
-pytest                        # 132 tests, fully offline (mocked DeepSeek/HTTP)
+pytest                        # 141 tests, fully offline (mocked DeepSeek/HTTP)
 
 cd web && npm run typecheck && npm run build
 ```

@@ -17,6 +17,7 @@ described concretely instead of vaguely.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 # Ordered longest-token-first so "9:16" matches before "1:1" etc. when we
@@ -233,3 +234,40 @@ def as_prompt_block(aspect_ratio: str, text_zone: str | None = None) -> str:
         for zone, text in rule["negative_space"].items():
             lines.append(f"    * {zone}: {text}.")
     return "\n".join(lines)
+
+
+# Matches a directional keyword ONLY when it names the location of a reserved /
+# negative-space region ("negative space at the top", "empty area toward the
+# left"), so a zone rewrite fixes the spatial instruction without touching
+# unrelated directions like the camera angle "top-down view" or the subject's
+# own placement ("the cup on the right").
+_NEG_SPACE_DIRECTION_RE = re.compile(
+    r"(?P<cue>(?:negative|empty|open|blank|clean|reserved|clear|uncluttered|low-detail)\s+"
+    r"(?:[\w-]+\s+){0,2}?(?:space|area|region|zone|band|section|portion|strip|margin)\b[^.]{0,32}?\bthe\s+)"
+    r"(?P<zone>top|bottom|centre|center|left|right)\b(?!-)",
+    re.IGNORECASE,
+)
+
+
+def align_zone_language(text: str, target_zone: str, *, append_clause: str) -> str:
+    """Rewrite the negative-space direction in `text` to match `target_zone`.
+
+    When a layout adaptation changes the text_zone (e.g. 'top' -> 'bottom'),
+    the reused prose can still describe the OLD zone's reserved space, which
+    then fails src/schema.py's text_zone-consistency check. This rewrites the
+    directional keyword inside any negative-space clause to the new zone, and
+    — as a guaranteed safety net — appends `append_clause` (which must name
+    `target_zone`) if the zone word is still absent afterwards. Directional
+    words that aren't describing reserved space (camera angles, the subject's
+    own placement) are deliberately left untouched.
+    """
+    target = "center" if target_zone.strip().lower() == "centre" else target_zone.strip().lower()
+
+    corrected = _NEG_SPACE_DIRECTION_RE.sub(lambda m: f"{m.group('cue')}{target}", text)
+
+    if target not in corrected.lower():
+        stripped = corrected.rstrip()
+        if stripped.endswith("."):
+            stripped = stripped[:-1].rstrip()
+        corrected = f"{stripped}, {append_clause}."
+    return corrected
