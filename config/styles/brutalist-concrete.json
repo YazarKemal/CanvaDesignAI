@@ -1,0 +1,14 @@
+{
+  "slug": "brutalist-concrete",
+  "name": "Brutalist Concrete",
+  "description": "Post-war Brutalist architecture photography: monolithic polished concrete, hard geometric shadows, stark monochrome austerity.",
+  "recommended_magic_media_style": "Photographic",
+  "magic_media_keywords": "Post-war Brutalist architecture photography, monolithic polished concrete and raw board-formed concrete surfaces, hard directional midday sun casting sharp geometric shadows, architectural wide-angle register, stark monochrome austerity with a single muted accent, one vast blank concrete wall held as negative space for typography.",
+  "required_keywords": [
+    "brutalist architecture",
+    "polished concrete",
+    "hard directional midday sun",
+    "architectural wide-angle"
+  ],
+  "palette_hint": "béton brut — concrete gray (#8C8C88) with a muted rust accent (#C7521E), anchored by chalk white (#EDEDEA) and near-black (#1B1B1B) for legible contrast"
+}

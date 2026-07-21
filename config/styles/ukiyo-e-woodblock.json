@@ -1,0 +1,14 @@
+{
+  "slug": "ukiyo-e-woodblock",
+  "name": "Ukiyo-e Woodblock",
+  "description": "Edo-period Japanese ukiyo-e woodblock print: flat indigo and vermilion planes, bold keyblock outlines, bokashi gradient sky on washi paper.",
+  "recommended_magic_media_style": "Watercolor",
+  "magic_media_keywords": "Edo-period ukiyo-e woodblock print, flat indigo and vermilion color planes with bold keyblock outlines, bokashi gradient sky, visible washi paper grain, stylized wave and cloud motifs, diffused overcast light flatness, one calm empty sky band held as negative space for typography.",
+  "required_keywords": [
+    "ukiyo-e woodblock",
+    "keyblock outlines",
+    "bokashi gradient",
+    "washi paper grain"
+  ],
+  "palette_hint": "Edo print inks — Prussian blue (#1F4788) and vermilion (#D9381E) on washi cream (#F3E9D2), anchored by sumi ink (#1A1714) for legible contrast"
+}

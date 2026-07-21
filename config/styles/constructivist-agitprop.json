@@ -1,0 +1,14 @@
+{
+  "slug": "constructivist-agitprop",
+  "name": "Constructivist Agitprop",
+  "description": "1920s Constructivist propaganda poster: dynamic diagonal composition, bold wedge shapes, red-black photomontage on coarse newsprint.",
+  "recommended_magic_media_style": "Flat Vector",
+  "magic_media_keywords": "1920s Constructivist agitprop poster, dynamic diagonal composition with bold wedge shapes, red and black photomontage cutouts, coarse newsprint texture, stark geometric abstraction, hard directional midday sun contrast, flat poster ink surfaces, one angular blank band driven across the layout as negative space for typography.",
+  "required_keywords": [
+    "constructivist agitprop",
+    "diagonal composition",
+    "photomontage",
+    "wedge"
+  ],
+  "palette_hint": "agitprop economy — revolutionary red (#D32011) and ink black (#121212) on unbleached newsprint (#F2EFE6) for legible contrast"
+}

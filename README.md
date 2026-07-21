@@ -142,18 +142,19 @@ text_zone) so the look is guaranteed to land rather than being paraphrased
 away. Any negative-space wording in a preset defers to the brief's
 `text_zone`, and Omni-Channel adaptation preserves the keywords while the
 zone reconciler re-points the reserved space — so styles combine cleanly
-with the format/zone logic. Ships with six presets:
-[`neo-grunge-streetwear`](config/styles/neo-grunge-streetwear.json),
-[`holographic-glassmorphism`](config/styles/holographic-glassmorphism.json),
-[`corporate-dynamic-vector`](config/styles/corporate-dynamic-vector.json),
-plus three grounded in concrete art traditions —
-[`riso-print-editorial`](config/styles/riso-print-editorial.json)
-(Risograph duplicator printing),
-[`bauhaus-modernist-poster`](config/styles/bauhaus-modernist-poster.json)
-(1920s Bauhaus poster language), and
-[`kodachrome-americana`](config/styles/kodachrome-americana.json)
-(1970s Kodachrome color documentary photography).
-A brand and a style may both be active.
+with the format/zone logic. Ships with 18 presets in
+[`config/styles/`](config/styles/), each anchored to a concrete art or
+design tradition rather than a generic vibe — among them Swiss
+International Typographic Style, 1980s Memphis design, 1920s Art Deco,
+post-war Brutalist architecture photography, Edo-period ukiyo-e woodblock,
+late-1960s psychedelic concert posters, vaporwave, 1950s mid-century
+modern screenprint, 1890s Art Nouveau lithography, 1920s Constructivist
+agitprop, Dutch Golden Age still life, Y2K chrome, Risograph printing,
+Bauhaus poster language, and 1970s Kodachrome documentary photography.
+Every preset draws terms from the `aesthetic_taxonomy` lexicons, and its
+tradition anchor is itself a `required_keyword` — so the tradition is
+code-enforced in every generated prompt. A brand and a style may both be
+active.
 
 **Critic = the existing Reviewer, extended — not a new stage.** Rather than
 add a separate fourth LLM call, `design_rules.json`'s rubric gained a
@@ -227,7 +228,7 @@ cd web && cp .env.example .env.local && npm install && npm run dev
 
 ```bash
 pip install -r requirements.txt pytest
-pytest                        # 168 tests, fully offline (mocked DeepSeek/HTTP)
+pytest                        # 170 tests, fully offline (mocked DeepSeek/HTTP)
 
 cd web && npm run typecheck && npm run build
 ```

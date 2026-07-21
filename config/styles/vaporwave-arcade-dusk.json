@@ -1,0 +1,14 @@
+{
+  "slug": "vaporwave-arcade-dusk",
+  "name": "Vaporwave Arcade Dusk",
+  "description": "Retro-futurist vaporwave digital aesthetic: neon wireframe grid horizon, chrome silhouettes, VHS scanlines over a dusk gradient.",
+  "recommended_magic_media_style": "Neon",
+  "magic_media_keywords": "Vaporwave retro-futurist digital collage, neon wireframe grid horizon receding into a dusk gradient, chrome statue and palm silhouettes, VHS scanline shimmer, cool blue-hour ambient glow, glossy airbrushed sheen, one wide empty gradient sky held as negative space for typography.",
+  "required_keywords": [
+    "vaporwave",
+    "neon wireframe grid",
+    "vhs scanline",
+    "dusk gradient"
+  ],
+  "palette_hint": "arcade dusk — hot pink (#FF3CAC), sunset orange (#FF9052) and deep indigo (#2B1B67), anchored by near-black night (#10091E) against the pale glow (#F3EAFE) for legible contrast"
+}
