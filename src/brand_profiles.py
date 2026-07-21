@@ -79,14 +79,30 @@ def visual_identity_block(brand: dict[str, Any]) -> str:
     )
 
 
-def as_prompt_block(brand: dict[str, Any]) -> str:
-    """Render a brand profile as an instruction block for LLM prompts."""
+def as_prompt_block(
+    brand: dict[str, Any], *, exclude_visual_identity: bool = False
+) -> str:
+    """Render a brand profile as an instruction block for LLM prompts.
+
+    When *exclude_visual_identity* is True (because a Style Preset is active
+    and its visual architecture overrides the brand's default aesthetic), the
+    brand's ``visual_identity`` key is stripped from the embedded JSON and
+    the ``visual_identity_block`` is suppressed entirely — only Color Palette,
+    Typography (fonts) and Logo placement rules are included so the brand
+    constrains the typography *layer* without competing with the style
+    preset's image-direction keywords.
+    """
+    brand_for_prompt = dict(brand)
+    if exclude_visual_identity:
+        brand_for_prompt.pop("visual_identity", None)
+
     block = (
         f"BRAND PROFILE (mandatory — this design MUST use ONLY this brand's fonts "
         f"and colors, overriding the generic Art Director typography/color "
-        f"defaults):\n{json.dumps(brand, ensure_ascii=False, indent=2)}"
+        f"defaults):\n{json.dumps(brand_for_prompt, ensure_ascii=False, indent=2)}"
     )
-    visual = visual_identity_block(brand)
-    if visual:
-        block += f"\n\n{visual}"
+    if not exclude_visual_identity:
+        visual = visual_identity_block(brand)
+        if visual:
+            block += f"\n\n{visual}"
     return block

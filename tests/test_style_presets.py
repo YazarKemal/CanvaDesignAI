@@ -77,3 +77,24 @@ def test_load_style_with_custom_directory(tmp_path: Path):
     (custom / "x.json").write_text(json.dumps({"slug": "x", "name": "X", "required_keywords": []}))
     assert load_style("x", styles_dir=custom)["name"] == "X"
     assert list_styles(styles_dir=custom) == ["x"]
+
+
+def test_as_prompt_block_with_override_brand_includes_hierarchy_directive():
+    """When override_brand=True, the block must contain the STYLE OVERRIDE RULE
+    instructing the LLM that the style replaces the brand's visual identity."""
+    style = load_style("corporate-dynamic-vector")
+    block = as_prompt_block(style, override_brand=True)
+    assert "ELITE STYLE PRESET" in block
+    assert "STYLE OVERRIDE RULE" in block
+    assert "REPLACES and OVERRIDES" in block
+    assert "Color Palette, Typography" in block  # brand's remaining contribution
+
+
+def test_as_prompt_block_without_override_brand_omits_hierarchy_directive():
+    """Default behavior (override_brand=False) must NOT include the override
+    directive — style-only mode without a brand."""
+    style = load_style("neo-grunge-streetwear")
+    block = as_prompt_block(style)  # default
+    assert "ELITE STYLE PRESET" in block
+    assert "STYLE OVERRIDE RULE" not in block
+    assert "REPLACES and OVERRIDES" not in block

@@ -80,6 +80,34 @@ def test_as_prompt_block_omits_visual_identity_when_absent():
     assert "BRAND VISUAL IDENTITY" not in block
 
 
+def test_as_prompt_block_excludes_visual_identity_when_requested():
+    """When exclude_visual_identity=True, the block must NOT contain
+    BRAND VISUAL IDENTITY or any texture/mood keywords, but must still
+    carry the typography/color constraints."""
+    brand = load_brand(EXAMPLE_SLUG)
+    block = as_prompt_block(brand, exclude_visual_identity=True)
+    assert "BRAND PROFILE" in block
+    assert "BRAND VISUAL IDENTITY" not in block
+    assert "warm oak wood grain" not in block
+    assert "editorial photography" not in block
+    # Brand JSON within the block must NOT contain the visual_identity key
+    assert '"visual_identity"' not in block
+    # But core brand data must still be there
+    assert "Montserrat Bold" in block
+    assert "#4A2E1B" in block
+
+
+def test_as_prompt_block_includes_visual_identity_by_default():
+    """Default behavior (exclude_visual_identity=False) must preserve the
+    backward-compatible full brand block with visual identity."""
+    brand = load_brand(EXAMPLE_SLUG)
+    block = as_prompt_block(brand)  # default
+    assert "BRAND VISUAL IDENTITY" in block
+    assert "warm oak wood grain" in block
+    assert "editorial photography" in block
+    assert '"visual_identity"' in block
+
+
 def test_load_brand_with_custom_directory(tmp_path: Path):
     custom_dir = tmp_path / "brands"
     custom_dir.mkdir()

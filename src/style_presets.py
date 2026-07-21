@@ -53,14 +53,37 @@ def required_keywords(style: dict[str, Any]) -> list[str]:
     return list(style.get("required_keywords", []))
 
 
-def as_prompt_block(style: dict[str, Any]) -> str:
-    """Render a style preset as a mandatory image-prompt directive."""
+def as_prompt_block(
+    style: dict[str, Any], *, override_brand: bool = False
+) -> str:
+    """Render a style preset as a mandatory image-prompt directive.
+
+    When *override_brand* is True (a Brand Profile is also active), the block
+    includes a strict hierarchy directive: the Style Preset's visual
+    architecture REPLACES the Brand Profile's default visual identity (mood,
+    lighting, textures, photographic style). The Brand Profile only contributes
+    Color Palette, Typography, and Logo placement to the *typography layer* —
+    it does NOT steer the generated image's look.
+    """
     lines = [
         f"ELITE STYLE PRESET — '{style['name']}' (mandatory image direction). The "
         "magic_media_prompt MUST weave in these exact photographic and textural "
         "keywords, verbatim, so the generated image lands this look:",
         f"  {style['magic_media_keywords']}",
     ]
+    if override_brand:
+        lines.append(
+            "\nSTYLE OVERRIDE RULE (token hierarchy — strict): This Style Preset's "
+            "visual architecture REPLACES and OVERRIDES the Brand Profile's default "
+            "visual identity (mood, lighting warmth, material/texture cues, "
+            "photographic/illustrative register). The Brand Profile ONLY contributes "
+            "its Color Palette, Typography (headline_font / body_font), and Logo "
+            "placement rules to the typography layer — it does NOT contribute any "
+            "visual mood or photographic direction to magic_media_prompt. The style "
+            "preset wins on all image-aesthetic decisions. Do NOT describe the "
+            "brand's default visual mood anywhere in magic_media_prompt — use ONLY "
+            "the style preset's visual architecture."
+        )
     if style.get("recommended_magic_media_style"):
         lines.append(
             f"- Set layer_typography_architecture.magic_media_style to "

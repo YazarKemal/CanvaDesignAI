@@ -188,6 +188,98 @@ def test_generate_prompt_embeds_brand_visual_identity_in_image_steering():
     assert "warm oak wood grain" in system_msg  # texture cue must reach the image prompt
 
 
+def test_style_overrides_brand_visual_identity_when_both_active():
+    """When both brand and style are active, brand visual_identity keywords
+    (mood, textures, photographic style) must NOT appear — the style
+    preset's visual architecture wins."""
+    brand = load_brand("example-cafe")
+    style = load_style("corporate-dynamic-vector")
+    # Build a card whose magic_media_prompt carries the corporate style's
+    # required_keywords and whose fonts/colors match the example-cafe brand.
+    corporate_card = json.loads(json.dumps(VALID_CARD))
+    corporate_card["magic_media_prompt"] = (
+        "Ultra-clean modern corporate aesthetic hero shot, smooth gradient background, "
+        "sharp 3D vector wave elements at the borders, brilliant softbox lighting, a "
+        "highly isolated subject, empty negative space at the top for bold typography."
+    )
+    corporate_card["layer_typography_architecture"]["fonts"] = {
+        "headline_font": "Montserrat Bold", "body_font": "Playfair Display"
+    }
+    corporate_card["layer_typography_architecture"]["color_palette"] = ["#4A2E1B", "#D4A373", "#F5EFE6"]
+    client = _FakeOpenAIClient(json.dumps(corporate_card))
+    generate_prompt(BRIEF, concept="Corporate cafe graphic", brand=brand, style=style, client=client)
+    system_msg = client.captured_kwargs["messages"][0]["content"]
+    # Style override rule must be present
+    assert "STYLE OVERRIDE RULE" in system_msg
+    # Brand visual identity's explicit block header must NOT appear (it's suppressed)
+    assert "BRAND VISUAL IDENTITY" not in system_msg
+    # The brand's visual_identity key must be stripped from the embedded JSON
+    assert '"visual_identity"' not in system_msg
+    # But brand typography/color constraints must still be present
+    assert "BRAND PROFILE" in system_msg
+    assert "Montserrat Bold" in system_msg
+    # Style keywords must be present
+    assert "ELITE STYLE PRESET" in system_msg
+    assert "modern corporate aesthetic" in system_msg
+
+
+def test_style_overrides_magic_media_prompt_opening_instruction():
+    """When a style is active (with or without brand), the magic_media_prompt
+    rule must instruct the LLM to open with the style's keywords first."""
+    style = load_style("holographic-glassmorphism")
+    # Card with holographic required keywords
+    holo_card = json.loads(json.dumps(VALID_CARD))
+    holo_card["magic_media_prompt"] = (
+        "Iridescent dark purple and neon chrome gradients wash across a smooth "
+        "glassmorphism surface with layered depth, soft glowing glass refraction, "
+        "shimmering holographic fluid background, a clean flat vector iconic icon "
+        "in the center, empty top area for text overlay."
+    )
+    client = _FakeOpenAIClient(json.dumps(holo_card))
+    generate_prompt(BRIEF, concept="Holo poster", style=style, client=client)
+    system_msg = client.captured_kwargs["messages"][0]["content"]
+    assert "MUST OPEN with the Style Preset" in system_msg
+
+
+def test_brand_visual_identity_still_active_when_no_style():
+    """Without a style preset, the brand's visual_identity must still steer
+    the image prompt (backward-compatible behavior)."""
+    brand = load_brand("example-cafe")
+    client = _FakeOpenAIClient(json.dumps(VALID_CARD))
+    generate_prompt(BRIEF, concept="Grand Opening Cafe", brand=brand, client=client)
+    system_msg = client.captured_kwargs["messages"][0]["content"]
+    assert "BRAND VISUAL IDENTITY" in system_msg
+    assert "warm oak wood grain" in system_msg
+    assert "STYLE OVERRIDE RULE" not in system_msg
+
+
+def test_brand_without_visual_identity_works_with_style():
+    """A brand that has no visual_identity block should still work cleanly
+    when combined with a style preset — no crash, no orphaned override text."""
+    bare_brand = {
+        "slug": "bare-brand",
+        "name": "Bare Brand",
+        "signature_fonts": {"headline_font": "Inter", "body_font": "Inter"},
+        "approved_colors": {"primary": ["#111111"], "secondary": ["#EEEEEE"], "accent": ["#39FF14"]},
+    }
+    style = load_style("corporate-dynamic-vector")
+    bare_card = json.loads(json.dumps(VALID_CARD))
+    bare_card["magic_media_prompt"] = (
+        "Ultra-clean modern corporate aesthetic hero shot, smooth gradient background, "
+        "sharp 3D vector wave elements at the borders, brilliant softbox lighting, a "
+        "highly isolated subject, empty negative space at the top for bold typography."
+    )
+    bare_card["layer_typography_architecture"]["fonts"] = {"headline_font": "Inter", "body_font": "Inter"}
+    bare_card["layer_typography_architecture"]["color_palette"] = ["#111111", "#EEEEEE", "#39FF14"]
+    client = _FakeOpenAIClient(json.dumps(bare_card))
+    card = generate_prompt(BRIEF, concept="Bare brand + style", brand=bare_brand, style=style, client=client)
+    system_msg = client.captured_kwargs["messages"][0]["content"]
+    assert "ELITE STYLE PRESET" in system_msg
+    assert "STYLE OVERRIDE RULE" in system_msg
+    assert "BRAND PROFILE" in system_msg
+    assert card["layer_typography_architecture"]["fonts"]["headline_font"] == "Inter"
+
+
 # A card whose magic_media_prompt actually contains the neo-grunge required
 # keywords AND references text_zone 'top', with a high-contrast monochrome+neon
 # palette so it also passes the contrast check.

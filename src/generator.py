@@ -79,17 +79,66 @@ def _system_prompt(
     composition_section = ""
     if aspect_ratio:
         composition_section = f"\n\n{composition_prompt_block(aspect_ratio, text_zone)}"
-    style_section = f"\n\n{style_prompt_block(style)}" if style is not None else ""
+
+    # -- Style preset section (with override when brand is also active) -----
+    style_section = ""
+    if style is not None:
+        override = brand is not None
+        style_section = f"\n\n{style_prompt_block(style, override_brand=override)}"
+
+    # -- Brand profile section (suppress visual_identity when style overrides) -
     brand_section = ""
     if brand is not None:
-        brand_section = (
-            f"\n\n{brand_prompt_block(brand)}\n\n"
-            "4. Because a brand profile is active: fonts.headline_font and "
-            "fonts.body_font MUST be EXACTLY this brand's signature_fonts "
-            "(ignore typography.approved_pairings entirely), and every "
+        exclude_vi = style is not None
+        brand_section = f"\n\n{brand_prompt_block(brand, exclude_visual_identity=exclude_vi)}"
+        brand_section += (
+            "\n\nBRAND CONSTRAINT SUMMARY: Because a brand profile is active: "
+            "fonts.headline_font and fonts.body_font MUST be EXACTLY this brand's "
+            "signature_fonts (ignore typography.approved_pairings entirely), and every "
             "color_palette entry MUST be one of this brand's approved_colors "
             "verbatim — do not invent, blend, or approximate a new HEX value."
         )
+        if style is not None:
+            brand_section += (
+                " The Style Preset's visual architecture OVERRIDES the Brand's "
+                "visual_identity — the Brand ONLY contributes typography, colors, "
+                "and logo placement to the typography layer, NOT visual mood or "
+                "photographic direction to the image prompt."
+            )
+        else:
+            # When no style is active, brand visual_identity IS active for the image
+            brand_section += (
+                " The Brand's visual_identity (mood, lighting, textures, "
+                "photographic style) must ALSO be embedded in magic_media_prompt "
+                "so the generated image reads on-brand."
+            )
+
+    # -- magic_media_prompt construction rule (style-first when style active) -
+    if style is not None:
+        magic_media_rule = (
+            "1. magic_media_prompt — MUST OPEN with the Style Preset's visual "
+            "architecture keywords verbatim at the very beginning of the prompt "
+            "(for maximum AI image-model adherence to the style), then continue "
+            "with the standard structure (subject -> medium -> composition -> "
+            "lighting -> color/mood -> camera -> quality). The Style Preset's "
+            "aesthetic takes absolute precedence over any brand visual_identity "
+            "in the image description. MUST reserve deliberate negative space "
+            "for the typography layer AT THE LOCATION GIVEN BY text_zone below, "
+            "and strategically place Canva library keywords from the brief. Do "
+            "NOT put aspect-ratio flags (--ar) inside it; the ratio lives in "
+            "the aspect_ratio field."
+        )
+    else:
+        magic_media_rule = (
+            "1. magic_media_prompt — one flowing, copy-paste-ready English prompt "
+            "built per the magic_media_prompt rules above (subject -> medium -> "
+            "composition -> lighting -> color/mood -> camera -> quality). MUST "
+            "reserve deliberate negative space for the typography layer AT THE "
+            "LOCATION GIVEN BY text_zone below, and strategically place Canva "
+            "library keywords from the brief. Do NOT put aspect-ratio flags "
+            "(--ar) inside it; the ratio lives in the aspect_ratio field."
+        )
+
     return (
         "Sen Claude degil, DeepSeek tabanli bir Canva Prompt Muhendisisin "
         "(Canva Prompt Engineer) — bir otomasyon motorunun ikinci asamasisin. "
@@ -107,13 +156,7 @@ def _system_prompt(
         f"{kb}"
         f"{composition_section}\n\n"
         "The three mandatory components:\n"
-        "1. magic_media_prompt — one flowing, copy-paste-ready English prompt "
-        "built per the magic_media_prompt rules above (subject -> medium -> "
-        "composition -> lighting -> color/mood -> camera -> quality). MUST "
-        "reserve deliberate negative space for the typography layer AT THE "
-        "LOCATION GIVEN BY text_zone below, and strategically place Canva "
-        "library keywords from the brief. Do NOT put aspect-ratio flags "
-        "(--ar) inside it; the ratio lives in the aspect_ratio field.\n"
+        f"{magic_media_rule}\n"
         "2. layer_typography_architecture — {headline (<=6 words), subtext (one "
         "short line, <=14 words), color_palette (3-5 real HEX codes), fonts "
         "{headline_font, body_font} from the typography.approved_pairings, "

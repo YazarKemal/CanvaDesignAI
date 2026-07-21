@@ -104,5 +104,10 @@ class DeepSeekClient:
         )
 
     @property
+    def base_url(self) -> str:
+        """Drop-in for openai.OpenAI().base_url."""
+        return self._chat_completion.base_url
+
+    @property
     def chat(self) -> DeepSeekChatNamespace:
         return DeepSeekChatNamespace(self._chat_completion)
