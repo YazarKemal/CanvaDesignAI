@@ -26,6 +26,7 @@ from src.brand_profiles import as_prompt_block as brand_prompt_block
 from src.canva_rules import CANVA_KNOWLEDGE_BASE
 from src.composition_rules import as_prompt_block as composition_prompt_block
 from src.constitution import as_prompt_block, load_constitution
+from src.golden_cards import as_few_shot_block
 from src.llm_json import extract_json
 from src.schema import PromptValidationError, validate_prompt
 from src.style_presets import as_prompt_block as style_prompt_block
@@ -85,6 +86,11 @@ def _system_prompt(
     if style is not None:
         override = brand is not None
         style_section = f"\n\n{style_prompt_block(style, override_brand=override)}"
+        # Few-shot injection: include the golden reference card for this exact
+        # style so the Generator has a concrete 9.0+ example to calibrate against.
+        golden_block = as_few_shot_block(style["slug"])
+        if golden_block:
+            style_section += golden_block
 
     # -- Brand profile section (suppress visual_identity when style overrides) -
     brand_section = ""
