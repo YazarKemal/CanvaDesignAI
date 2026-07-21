@@ -25,7 +25,13 @@ client = TestClient(api.app)
 
 
 def _fake_result(**over):
-    base = {"card": CARD, "review": SimpleNamespace(score=9.0, feedback=""), "attempts": 1, "approved": True}
+    base = {
+        "card": CARD,
+        "brief": {},  # api.py reads result.brief.get("selected_style_id")
+        "review": SimpleNamespace(score=9.0, feedback=""),
+        "attempts": 1,
+        "approved": True,
+    }
     base.update(over)
     return SimpleNamespace(**base)
 
