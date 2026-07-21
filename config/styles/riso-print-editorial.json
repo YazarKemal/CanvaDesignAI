@@ -1,0 +1,14 @@
+{
+  "slug": "riso-print-editorial",
+  "name": "Riso Print Editorial",
+  "description": "Risograph duplicator print aesthetic: grainy soy-ink texture, two-color overlay with visible misregistration, and coarse halftone shading on warm paper white.",
+  "recommended_magic_media_style": "Flat Vector",
+  "magic_media_keywords": "Grainy risograph print texture with visible ink misregistration, flat two-color soy ink overlay in fluorescent pink and teal, coarse halftone dot shading, warm paper-white show-through, playful editorial zine illustration register, generous unprinted paper negative space reserved for typography.",
+  "required_keywords": [
+    "risograph print texture",
+    "ink misregistration",
+    "halftone dot",
+    "soy ink"
+  ],
+  "palette_hint": "classic riso ink duo — fluorescent pink (#FF48B0) and teal (#0078BF) on warm paper white (#FAF6EE), anchored by deep ink black (#1A1A1A) for legible contrast"
+}

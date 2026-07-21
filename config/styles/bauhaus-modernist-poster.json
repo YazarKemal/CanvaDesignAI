@@ -1,0 +1,14 @@
+{
+  "slug": "bauhaus-modernist-poster",
+  "name": "Bauhaus Modernist Poster",
+  "description": "1920s Bauhaus school poster language: primary-color geometry, bold diagonal bars, flat matte poster surfaces, and strict asymmetric grid balance.",
+  "recommended_magic_media_style": "Minimalist",
+  "magic_media_keywords": "Bauhaus geometric layout of primary-color circles, triangles and bold diagonal bars, flat matte poster paint surfaces, strict grid with asymmetric balance, 1920s German modernist print aesthetic, subtle letterpress paper texture, deliberate flat negative space held open for typography.",
+  "required_keywords": [
+    "bauhaus geometric layout",
+    "primary-color",
+    "diagonal bars",
+    "modernist print aesthetic"
+  ],
+  "palette_hint": "Bauhaus primaries — signal red (#D5212E), cobalt blue (#1246AB), warm yellow (#F0B41C) — anchored by off-white paper (#F2EEE3) and near-black (#141414) for legible contrast"
+}

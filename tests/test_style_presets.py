@@ -16,10 +16,13 @@ EXPECTED_SLUGS = {
     "neo-grunge-streetwear",
     "holographic-glassmorphism",
     "corporate-dynamic-vector",
+    "riso-print-editorial",
+    "bauhaus-modernist-poster",
+    "kodachrome-americana",
 }
 
 
-def test_list_styles_includes_all_three_presets():
+def test_list_styles_includes_all_expected_presets():
     assert EXPECTED_SLUGS.issubset(set(list_styles()))
 
 
@@ -69,6 +72,39 @@ def test_validate_style_compliance_raises_when_keyword_missing():
     card = {"magic_media_prompt": "A plain corporate image with a gradient and some waves."}
     with pytest.raises(PromptValidationError, match="style keyword"):
         validate_style_compliance(card, style)
+
+
+def test_new_presets_reference_concrete_art_traditions():
+    # Each new preset is anchored to a specific tradition, not a generic vibe.
+    riso = load_style("riso-print-editorial")
+    assert "risograph print texture" in riso["magic_media_keywords"].lower()
+
+    bauhaus = load_style("bauhaus-modernist-poster")
+    assert "bauhaus geometric layout" in bauhaus["magic_media_keywords"].lower()
+    assert "1920s" in bauhaus["magic_media_keywords"]
+
+    kodak = load_style("kodachrome-americana")
+    assert "kodachrome color documentary" in kodak["magic_media_keywords"].lower()
+    # draws its light quality verbatim from the aesthetic_taxonomy lexicon
+    assert "golden-hour rim light" in kodak["magic_media_keywords"]
+
+
+def test_every_preset_uses_valid_canva_style_and_contrastable_palette_hint():
+    import re
+
+    from src.canva_rules import CANVA_KNOWLEDGE_BASE
+    from src.color_science import best_contrast_pair
+
+    for slug in EXPECTED_SLUGS:
+        style = load_style(slug)
+        assert style["recommended_magic_media_style"] in CANVA_KNOWLEDGE_BASE["magic_media_styles"]
+        hexes = re.findall(r"#[0-9A-Fa-f]{6}", style.get("palette_hint", ""))
+        assert len(hexes) >= 2, f"{slug}: palette_hint should carry concrete HEX guidance"
+        _a, _b, ratio = best_contrast_pair(hexes)
+        assert ratio >= 4.5, (
+            f"{slug}: palette_hint's colors max out at {ratio:.1f}:1 — a palette drawn "
+            "from the hint could never pass the WCAG gate"
+        )
 
 
 def test_load_style_with_custom_directory(tmp_path: Path):

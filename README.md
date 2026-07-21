@@ -142,10 +142,17 @@ text_zone) so the look is guaranteed to land rather than being paraphrased
 away. Any negative-space wording in a preset defers to the brief's
 `text_zone`, and Omni-Channel adaptation preserves the keywords while the
 zone reconciler re-points the reserved space — so styles combine cleanly
-with the format/zone logic. Ships with three presets:
+with the format/zone logic. Ships with six presets:
 [`neo-grunge-streetwear`](config/styles/neo-grunge-streetwear.json),
 [`holographic-glassmorphism`](config/styles/holographic-glassmorphism.json),
-and [`corporate-dynamic-vector`](config/styles/corporate-dynamic-vector.json).
+[`corporate-dynamic-vector`](config/styles/corporate-dynamic-vector.json),
+plus three grounded in concrete art traditions —
+[`riso-print-editorial`](config/styles/riso-print-editorial.json)
+(Risograph duplicator printing),
+[`bauhaus-modernist-poster`](config/styles/bauhaus-modernist-poster.json)
+(1920s Bauhaus poster language), and
+[`kodachrome-americana`](config/styles/kodachrome-americana.json)
+(1970s Kodachrome color documentary photography).
 A brand and a style may both be active.
 
 **Critic = the existing Reviewer, extended — not a new stage.** Rather than
@@ -220,7 +227,7 @@ cd web && cp .env.example .env.local && npm install && npm run dev
 
 ```bash
 pip install -r requirements.txt pytest
-pytest                        # 158 tests, fully offline (mocked DeepSeek/HTTP)
+pytest                        # 168 tests, fully offline (mocked DeepSeek/HTTP)
 
 cd web && npm run typecheck && npm run build
 ```
