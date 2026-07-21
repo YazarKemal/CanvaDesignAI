@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { BrandSelect } from "@/components/BrandSelect";
 import { ChatInput } from "@/components/ChatInput";
 import { ChatPromptCard } from "@/components/ChatPromptCard";
+import { StyleSelect } from "@/components/StyleSelect";
 import type { AdaptResponse, ChatResponse, LogEntry, TargetFormat } from "@/lib/types";
 
 const TOOLS = ["canva", "magic media", "dall-e 3", "midjourney"];
@@ -11,6 +12,7 @@ const TOOLS = ["canva", "magic media", "dall-e 3", "midjourney"];
 export default function Home() {
   const [input, setInput] = useState("");
   const [brand, setBrand] = useState<string | null>(null);
+  const [style, setStyle] = useState<string | null>(null);
   const [entries, setEntries] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [adaptingId, setAdaptingId] = useState<number | null>(null);
@@ -51,7 +53,7 @@ export default function Home() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: concept, brand }),
+        body: JSON.stringify({ message: concept, brand, style }),
       });
       const data = await res.json();
 
@@ -90,7 +92,7 @@ export default function Home() {
       const res = await fetch("/api/adapt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ card: source.card, formats: [format], brand }),
+        body: JSON.stringify({ card: source.card, formats: [format], brand, style }),
       });
       const data = await res.json();
       const id = nextId.current++;
@@ -156,6 +158,7 @@ export default function Home() {
             disabled={loading}
           />
           <BrandSelect selected={brand} onChange={setBrand} />
+          <StyleSelect selected={style} onChange={setStyle} />
         </div>
 
         {/* Terminal log — flows top to bottom, left-bordered entries */}

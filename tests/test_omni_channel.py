@@ -168,6 +168,53 @@ def test_adapt_injects_format_specific_composition_for_story():
     assert "golden-ratio" not in system_msg
 
 
+STYLE_STORY_ADAPTATION = {
+    "text_zone": "center",
+    "magic_media_prompt": (
+        "High contrast monochromatic black and white base, deep shadows, distressed grunge "
+        "texture, a single vibrant neon accent, tall vertical framing, vast dark negative "
+        "space at the center for bold typography."
+    ),
+    "background_layers": "image fills the frame; a dark panel behind the center carries the headline/subtext",
+    "direct_action_tip": [
+        "Open Canva > Apps > Magic Media, paste magic_media_prompt, generate at 9:16 (1080x1920).",
+        "Add a Heading text box centered in the frame.",
+    ],
+}
+
+
+def test_adapt_injects_style_preset_and_preserves_keywords():
+    from src.style_presets import load_style
+
+    style = load_style("neo-grunge-streetwear")
+    base = _load_base_card()
+    client = _FakeClient([json.dumps(STYLE_STORY_ADAPTATION)])
+
+    variant = adapt_to_format(base, "instagram_story", style=style, client=client)
+
+    system_msg = client.calls[0]["messages"][0]["content"]
+    assert "Neo-Grunge Streetwear" in system_msg
+    assert "distressed grunge texture" in system_msg  # required keyword reminder
+    # style compliance held on the adapted variant
+    assert "distressed grunge texture" in variant["magic_media_prompt"]
+
+
+def test_adapt_rejects_variant_that_drops_style_keywords():
+    from src.style_presets import load_style
+
+    style = load_style("neo-grunge-streetwear")
+    base = _load_base_card()
+    # An adaptation that forgot the grunge keywords entirely (twice -> exhausts retries).
+    dropped = dict(STYLE_STORY_ADAPTATION)
+    dropped["magic_media_prompt"] = (
+        "A soft pastel watercolor scene, gentle light, ample negative space at the center for text."
+    )
+    client = _FakeClient([json.dumps(dropped), json.dumps(dropped)])
+
+    with pytest.raises(PromptValidationError, match="style keyword"):
+        adapt_to_format(base, "instagram_story", style=style, client=client)
+
+
 def test_adapt_injects_horizontal_composition_for_banner():
     base = _load_base_card()
     banner_adaptation = dict(VALID_STORY_ADAPTATION)

@@ -227,10 +227,31 @@ def validate_brand_compliance(card: dict[str, Any], brand: dict[str, Any]) -> No
             )
 
 
-def validate_prompt(card: dict[str, Any], *, brand: dict[str, Any] | None = None) -> None:
+def validate_style_compliance(card: dict[str, Any], style: dict[str, Any]) -> None:
+    """When a style preset is active, magic_media_prompt MUST contain each of
+    the preset's `required_keywords` (case-insensitive substring match), so
+    the elite look is guaranteed to land in the image prompt rather than being
+    silently paraphrased away. Raises PromptValidationError on the first
+    missing keyword (retried, same mechanism as brand/contrast/text_zone)."""
+    prompt_text = card["magic_media_prompt"].lower()
+    for keyword in style.get("required_keywords", []):
+        if keyword.lower() not in prompt_text:
+            raise PromptValidationError(
+                f"magic_media_prompt is missing the '{style['slug']}' style keyword "
+                f"'{keyword}'. The active style preset requires each of its "
+                f"required_keywords to appear verbatim in the image prompt."
+            )
+
+
+def validate_prompt(
+    card: dict[str, Any],
+    *,
+    brand: dict[str, Any] | None = None,
+    style: dict[str, Any] | None = None,
+) -> None:
     """Validate a Canva card: schema shape + every code-level Art Director
     rule (chat language, contrast, hierarchy, zone consistency, and — when
-    `brand` is given — brand compliance).
+    given — brand compliance and style-preset keyword compliance).
 
     Raises PromptValidationError with a readable message on the first
     failing check.
@@ -254,3 +275,6 @@ def validate_prompt(card: dict[str, Any], *, brand: dict[str, Any] | None = None
 
     if brand is not None:
         validate_brand_compliance(card, brand)
+
+    if style is not None:
+        validate_style_compliance(card, style)

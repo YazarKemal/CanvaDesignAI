@@ -28,6 +28,7 @@ from src.composition_rules import as_prompt_block as composition_prompt_block
 from src.constitution import as_prompt_block, load_constitution
 from src.llm_json import extract_json
 from src.schema import PromptValidationError, validate_prompt
+from src.style_presets import as_prompt_block as style_prompt_block
 
 DEFAULT_MODEL = "deepseek-chat"
 DEFAULT_BASE_URL = "https://api.deepseek.com"
@@ -72,11 +73,13 @@ def _system_prompt(
     *,
     aspect_ratio: str | None = None,
     text_zone: str | None = None,
+    style: dict[str, Any] | None = None,
 ) -> str:
     kb = json.dumps(CANVA_KNOWLEDGE_BASE, ensure_ascii=False, indent=2)
     composition_section = ""
     if aspect_ratio:
         composition_section = f"\n\n{composition_prompt_block(aspect_ratio, text_zone)}"
+    style_section = f"\n\n{style_prompt_block(style)}" if style is not None else ""
     brand_section = ""
     if brand is not None:
         brand_section = (
@@ -118,6 +121,7 @@ def _system_prompt(
         "MUST reference the same text_zone location).\n"
         "3. direct_action_tip — an ordered array of 2-5 concrete, literally-"
         "clickable Canva steps per the direct_action_tip rules above."
+        f"{style_section}"
         f"{brand_section}\n\n"
         "text_zone — copy the brief's text_zone value verbatim (top/bottom/"
         "left/right/center). Both magic_media_prompt and background_layers "
@@ -147,6 +151,7 @@ def generate_prompt(
     *,
     concept: str,
     brand: dict[str, Any] | None = None,
+    style: dict[str, Any] | None = None,
     feedback: str | None = None,
     model: str = DEFAULT_MODEL,
     client: Any = None,
@@ -155,10 +160,11 @@ def generate_prompt(
 
     `concept` is the original user request (carried into the card). If
     `brand` is given, the card's fonts/colors are constrained to that
-    brand and validated against it. If `feedback` is provided (from a
-    prior Reviewer rejection or a schema/forbidden-phrase/brand-compliance
-    validation failure), it is appended so the Generator can course-correct
-    on the next attempt.
+    brand and validated against it. If `style` is given, its elite keyword
+    block is injected and its required_keywords are enforced against
+    magic_media_prompt. If `feedback` is provided (from a prior Reviewer
+    rejection or a schema/forbidden-phrase/brand/style validation failure),
+    it is appended so the Generator can course-correct on the next attempt.
     """
     client = client or _default_client()
 
@@ -181,6 +187,7 @@ def generate_prompt(
                     brand,
                     aspect_ratio=brief.get("aspect_ratio"),
                     text_zone=brief.get("text_zone"),
+                    style=style,
                 ),
             },
             {"role": "user", "content": user_message},
@@ -195,5 +202,5 @@ def generate_prompt(
         raise PromptValidationError(f"Generator did not return valid JSON: {exc}\nRaw: {raw_text}") from exc
 
     card.setdefault("concept", concept)
-    validate_prompt(card, brand=brand)
+    validate_prompt(card, brand=brand, style=style)
     return card

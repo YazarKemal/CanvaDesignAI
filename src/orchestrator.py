@@ -41,6 +41,7 @@ from src.brand_profiles import load_brand
 from src.generator import generate_prompt
 from src.reviewer import ReviewResult, review_prompt
 from src.schema import PromptValidationError
+from src.style_presets import load_style
 
 DEFAULT_MAX_ATTEMPTS = 3
 
@@ -63,6 +64,7 @@ def run_pipeline(
     concept: str,
     *,
     brand: str | None = None,
+    style: str | None = None,
     max_attempts: int = DEFAULT_MAX_ATTEMPTS,
     architect_kwargs: dict[str, Any] | None = None,
     generator_kwargs: dict[str, Any] | None = None,
@@ -74,6 +76,12 @@ def run_pipeline(
     given, every stage is constrained to that brand's fonts/colors; when
     omitted, behavior is unchanged from the generic engine.
 
+    `style` is an elite style-preset slug (config/styles/<slug>.json). When
+    given, its keyword block steers the Architect's art direction and is
+    injected into the Generator, whose magic_media_prompt is then required
+    (code-level) to contain the preset's keywords. Brand and style are
+    orthogonal and may both be active.
+
     The Architect runs once to fix the brief; the Generator then revises
     against Reviewer feedback (or its own validation failures) until it
     passes or `max_attempts` is exhausted. Always returns the best-scoring
@@ -84,8 +92,9 @@ def run_pipeline(
     reviewer_kwargs = reviewer_kwargs or {}
 
     brand_profile = load_brand(brand) if brand else None
+    style_preset = load_style(style) if style else None
 
-    brief = build_brief(concept, brand=brand_profile, **architect_kwargs)
+    brief = build_brief(concept, brand=brand_profile, style=style_preset, **architect_kwargs)
 
     history: list[dict[str, Any]] = []
     best_card: dict[str, Any] | None = None
@@ -95,7 +104,12 @@ def run_pipeline(
     for attempt in range(1, max_attempts + 1):
         try:
             card = generate_prompt(
-                brief, concept=concept, brand=brand_profile, feedback=feedback, **generator_kwargs
+                brief,
+                concept=concept,
+                brand=brand_profile,
+                style=style_preset,
+                feedback=feedback,
+                **generator_kwargs,
             )
         except PromptValidationError as exc:
             feedback = str(exc)

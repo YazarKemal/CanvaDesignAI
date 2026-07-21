@@ -1,0 +1,14 @@
+{
+  "slug": "holographic-glassmorphism",
+  "name": "Holographic Glassmorphism",
+  "description": "Abstract 3D holographic fluid background with iridescent dark purple/neon chrome gradients and a frosted glassmorphism panel overlay.",
+  "recommended_magic_media_style": "3D Model",
+  "magic_media_keywords": "Abstract 3D holographic fluid background, iridescent dark purple and neon chrome gradients, smooth frosted glassmorphism UI panel overlay, luminous studio lighting, sleek futuristic digital art style, clean layered depth.",
+  "required_keywords": [
+    "holographic fluid background",
+    "iridescent",
+    "glassmorphism",
+    "layered depth"
+  ],
+  "palette_hint": "deep purple base (#1A0B2E) with iridescent chrome/violet accents (#B388FF, #E0D7FF) — keep a light near-white anchor for legible contrast"
+}

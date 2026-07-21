@@ -31,6 +31,7 @@ from src.omni_channel import TARGET_FORMATS, UnknownFormatError, generate_omni_c
 from src.orchestrator import DEFAULT_MAX_ATTEMPTS, run_pipeline
 from src.paste_render import render_for_assistant_paste
 from src.schema import PromptValidationError
+from src.style_presets import StyleNotFoundError, list_styles, load_style
 
 app = FastAPI(title="CaVDesign API", version="1.0.0")
 
@@ -46,6 +47,7 @@ app.add_middleware(
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, description="The user's plain design request.")
     brand: str | None = Field(None, description="Brand profile slug (config/brands/<slug>.json).")
+    style: str | None = Field(None, description="Elite style preset slug (config/styles/<slug>.json).")
     max_attempts: int = Field(DEFAULT_MAX_ATTEMPTS, ge=1, le=6)
 
 
@@ -68,10 +70,21 @@ class BrandsResponse(BaseModel):
     brands: list[BrandSummary]
 
 
+class StyleSummary(BaseModel):
+    slug: str
+    name: str
+    description: str
+
+
+class StylesResponse(BaseModel):
+    styles: list[StyleSummary]
+
+
 class AdaptRequest(BaseModel):
     card: dict[str, Any] = Field(..., description="An already-approved Canva card.")
     formats: list[str] = Field(..., min_length=1, description=f"Target formats: {sorted(TARGET_FORMATS)}")
     brand: str | None = None
+    style: str | None = Field(None, description="Elite style preset slug (config/styles/<slug>.json).")
 
 
 class AdaptVariant(BaseModel):
@@ -136,13 +149,29 @@ def brands() -> BrandsResponse:
     )
 
 
+@app.get("/api/styles", response_model=StylesResponse)
+def styles() -> StylesResponse:
+    summaries = []
+    for slug in list_styles():
+        preset = load_style(slug)
+        summaries.append(
+            StyleSummary(slug=slug, name=preset["name"], description=preset.get("description", ""))
+        )
+    return StylesResponse(styles=summaries)
+
+
 @app.post("/api/chat", response_model=ChatResponse)
 def chat(request: ChatRequest) -> ChatResponse:
     # Inject hard Canva system instructions before the user's message.
     augmented_message = CANVA_SYSTEM_PREAMBLE + request.message
     try:
-        result = run_pipeline(augmented_message, brand=request.brand, max_attempts=request.max_attempts)
-    except BrandNotFoundError as exc:
+        result = run_pipeline(
+            augmented_message,
+            brand=request.brand,
+            style=request.style,
+            max_attempts=request.max_attempts,
+        )
+    except (BrandNotFoundError, StyleNotFoundError) as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:  # surface engine/LLM failures as 502s
         raise HTTPException(status_code=502, detail=f"Pipeline failed: {exc}") from exc
@@ -163,11 +192,16 @@ def chat(request: ChatRequest) -> ChatResponse:
 @app.post("/api/adapt", response_model=AdaptResponse)
 def adapt(request: AdaptRequest) -> AdaptResponse:
     brand_profile = None
+    style_preset = None
     try:
         if request.brand:
             brand_profile = load_brand(request.brand)
-        variants = generate_omni_channel_set(request.card, request.formats, brand=brand_profile)
-    except BrandNotFoundError as exc:
+        if request.style:
+            style_preset = load_style(request.style)
+        variants = generate_omni_channel_set(
+            request.card, request.formats, brand=brand_profile, style=style_preset
+        )
+    except (BrandNotFoundError, StyleNotFoundError) as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except UnknownFormatError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

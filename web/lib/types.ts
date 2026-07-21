@@ -81,6 +81,16 @@ export interface BrandsResponse {
   brands: Brand[];
 }
 
+export interface Style {
+  slug: string;
+  name: string;
+  description: string;
+}
+
+export interface StylesResponse {
+  styles: Style[];
+}
+
 export interface AdaptVariant {
   card: PromptCard;
   paste_text: string;

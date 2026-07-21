@@ -26,6 +26,7 @@ from src.omni_channel import UnknownFormatError, generate_omni_channel_set
 from src.orchestrator import DEFAULT_MAX_ATTEMPTS, PipelineError, run_pipeline
 from src.paste_render import render_for_assistant_paste
 from src.schema import PromptValidationError
+from src.style_presets import StyleNotFoundError, load_style
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -34,6 +35,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("concept", help='Plain concept, e.g. "Grand Opening Cafe"')
     parser.add_argument("--brand", default=None, help="Brand profile slug (config/brands/<slug>.json).")
+    parser.add_argument(
+        "--style",
+        default=None,
+        help="Elite style preset slug (config/styles/<slug>.json), e.g. neo-grunge-streetwear.",
+    )
     parser.add_argument("--max-attempts", type=int, default=DEFAULT_MAX_ATTEMPTS)
     parser.add_argument(
         "--raw",
@@ -55,8 +61,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        result = run_pipeline(args.concept, brand=args.brand, max_attempts=args.max_attempts)
-    except (PipelineError, BrandNotFoundError) as exc:
+        result = run_pipeline(
+            args.concept, brand=args.brand, style=args.style, max_attempts=args.max_attempts
+        )
+    except (PipelineError, BrandNotFoundError, StyleNotFoundError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
@@ -75,8 +83,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.adapt_to and result.approved:
         formats = [f.strip() for f in args.adapt_to.split(",") if f.strip()]
         brand_profile = load_brand(args.brand) if args.brand else None
+        style_preset = load_style(args.style) if args.style else None
         try:
-            variants = generate_omni_channel_set(result.card, formats, brand=brand_profile)
+            variants = generate_omni_channel_set(
+                result.card, formats, brand=brand_profile, style=style_preset
+            )
         except (UnknownFormatError, PromptValidationError) as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 1
