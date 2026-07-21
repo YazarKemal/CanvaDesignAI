@@ -31,6 +31,20 @@ EXPECTED_SLUGS = {
     "constructivist-agitprop",
     "dutch-golden-age-still-life",
     "y2k-chrome-gloss",
+    "warm-editorial-minimalist",
+    "streamer-energetic-glitch",
+    "formal-ceremonial-turkish",
+    "utility-planner-ornamental",
+}
+
+# The 4 wave-3 presets: defined to close observed market gaps in the library
+# (travel/lifestyle editorial, streamer/personal-brand glitch, culture-neutral
+# ceremonial formal, and a utility-first ornamental planner).
+WAVE3_SLUGS = {
+    "warm-editorial-minimalist",
+    "streamer-energetic-glitch",
+    "formal-ceremonial-turkish",
+    "utility-planner-ornamental",
 }
 
 # The 12 wave-2 presets: each anchored to a concrete art/design tradition and
@@ -156,11 +170,73 @@ def test_wave2_presets_use_aesthetic_taxonomy_lexicon_term():
         for key in ("material_texture_lexicon", "light_quality_lexicon", "register_lexicon")
         for t in tax[key]
     }
-    for slug in WAVE2_SLUGS:
+    for slug in WAVE2_SLUGS | WAVE3_SLUGS:
         block = load_style(slug)["magic_media_keywords"].lower()
         assert any(term in block for term in lexicon), (
             f"{slug}: magic_media_keywords uses no aesthetic_taxonomy lexicon term"
         )
+
+
+def test_wave3_presets_are_anchored_and_code_enforced():
+    # Each wave-3 preset's defining register/signature is itself a
+    # required_keyword, so the gap it was designed to close is code-enforced
+    # in every generated image prompt.
+    anchors = {
+        "warm-editorial-minimalist": "warm editorial minimalist",
+        "streamer-energetic-glitch": "streamer glitch",
+        "formal-ceremonial-turkish": "formal ceremonial",
+        "utility-planner-ornamental": "utility planner layout",
+    }
+    for slug, anchor in anchors.items():
+        style = load_style(slug)
+        assert anchor in style["magic_media_keywords"].lower()
+        assert any(anchor in kw.lower() for kw in style["required_keywords"])
+
+
+def test_ceremonial_preset_is_culture_neutral():
+    # Deliberately defined without any specific flag or national emblem —
+    # tone and composition only, usable across cultures.
+    style = load_style("formal-ceremonial-turkish")
+    block = style["magic_media_keywords"].lower()
+    assert "emblem-free" in block
+    for symbol in ("crescent", "star and crescent", "eagle", "cross"):
+        assert symbol not in block
+
+
+def test_utility_planner_reconciles_with_hero_subject_composition():
+    # The planner preset reframes the grid as the composition recipes'
+    # "isolated hero subject" so the two system-prompt sections agree, and a
+    # full planner card passes validate_prompt end-to-end.
+    from src.schema import validate_prompt
+
+    planner = load_style("utility-planner-ornamental")
+    assert "planner grid itself is the isolated hero subject" in planner["magic_media_keywords"]
+
+    card = {
+        "concept": "Weekly Planner",
+        "magic_media_prompt": planner["magic_media_keywords"][:-1]
+        + ", the header band at the top left empty for overlaying text in Canva.",
+        "negative_prompt": "embedded text, numbers, letters, watermark, clutter",
+        "aspect_ratio": "2480x3508 (3:4 aspect)",
+        "target_tool": "Canva Magic Media",
+        "text_zone": "top",
+        "layer_typography_architecture": {
+            "headline": "Weekly Planner",
+            "subtext": "Plan the week, one clean grid.",
+            "color_palette": ["#152A52", "#B5893A", "#F6F0E2"],
+            "fonts": {
+                "headline_font": "Cormorant Garamond SemiBold",
+                "body_font": "Josefin Sans Regular",
+            },
+            "background_layers": "the ornamental planner grid fills the page; the top header band carries the headline/subtext",
+            "magic_media_style": "Flat Vector",
+        },
+        "direct_action_tip": [
+            "Open Magic Media, paste the prompt, generate at 3:4.",
+            "Add a Heading in the top header band.",
+        ],
+    }
+    validate_prompt(card, style=planner)  # must not raise
 
 
 def test_every_preset_uses_valid_canva_style_and_contrastable_palette_hint():
