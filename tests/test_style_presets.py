@@ -203,6 +203,34 @@ def test_ceremonial_preset_is_culture_neutral():
         assert symbol not in block
 
 
+def test_decorative_presets_protect_reserved_zone_in_their_own_language():
+    # The four decoratively dense presets each carry an explicit, preset-specific
+    # sentence shielding the reserved text zone from their own decoration —
+    # added after the golden-card batch showed all four bottoming out on canva_fit.
+    protections = {
+        "streamer-energetic-glitch": "must not bleed into the reserved text zone",
+        "memphis-design-pop": "stays strictly outside the reserved block",
+        "psychedelic-fillmore": "swirl density drops to zero within the reserved zone",
+        "utility-planner-ornamental": "no pseudo-text, no numerals and no handwriting marks",
+    }
+    for slug, phrase in protections.items():
+        assert phrase in load_style(slug)["magic_media_keywords"], slug
+
+
+def test_negative_prompt_boost_rendered_in_prompt_block():
+    # The planner preset's boost terms must reach the Generator via the style
+    # block, instructing a verbatim negative_prompt extension.
+    planner = load_style("utility-planner-ornamental")
+    assert "pseudo-text" in planner["negative_prompt_boost"]
+    block = as_prompt_block(planner)
+    assert "Append these exclusions to negative_prompt verbatim" in block
+    assert "gibberish glyphs" in block
+
+    # Presets without the field render no such line.
+    plain = as_prompt_block(load_style("swiss-international-grid"))
+    assert "Append these exclusions" not in plain
+
+
 def test_utility_planner_reconciles_with_hero_subject_composition():
     # The planner preset reframes the grid as the composition recipes'
     # "isolated hero subject" so the two system-prompt sections agree, and a

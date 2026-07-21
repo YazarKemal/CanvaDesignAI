@@ -116,6 +116,11 @@ def as_prompt_block(
             f"- Palette guidance (still emit real HEX with a valid contrast anchor): "
             f"{style['palette_hint']}."
         )
+    if style.get("negative_prompt_boost"):
+        lines.append(
+            f"- Append these exclusions to negative_prompt verbatim (this preset's "
+            f"known failure mode): {style['negative_prompt_boost']}."
+        )
     lines.append(
         "- Any negative-space wording in these keywords must defer to the brief's "
         "text_zone — reserve that empty space at the text_zone location, not "
