@@ -10,6 +10,7 @@ from src.schema import PromptValidationError
 BRIEF = {
     "aspect_ratio": "1:1 (1080x1080)",
     "target_tool": "Canva Magic Media",
+    "text_zone": "top",
     "art_direction": {"color_palette": ["#4A2E1B", "#D4A373", "#F5EFE6"], "lighting": "daylight", "mood": "minimalist"},
     "canva_keywords": ["flat vector illustration"],
     "negative_constraints": "empty top for text; no embedded text",
@@ -154,3 +155,33 @@ def test_generate_prompt_without_brand_ignores_font_choice():
 
     card = generate_prompt(BRIEF, concept="Grand Opening Cafe", client=client)  # no brand
     assert card["layer_typography_architecture"]["fonts"]["headline_font"] == "Anton"
+
+
+def test_generate_prompt_injects_format_specific_composition_from_brief():
+    # The 1:1 brief must steer the system prompt toward square/studio composition
+    # and the locked text_zone's precise negative-space language.
+    client = _FakeOpenAIClient(json.dumps(VALID_CARD))
+    generate_prompt(BRIEF, concept="Grand Opening Cafe", client=client)
+    system_msg = client.captured_kwargs["messages"][0]["content"]
+    assert "FORMAT-SPECIFIC COMPOSITION" in system_msg
+    assert "golden-ratio" in system_msg  # 1:1 recipe
+    assert "text_zone 'top'" in system_msg
+    assert "top 40%" in system_msg  # 1:1 top negative-space line
+
+
+def test_generate_prompt_composition_varies_by_aspect_ratio():
+    story_brief = dict(BRIEF, aspect_ratio="9:16 (1080x1920)", text_zone="center")
+    client = _FakeOpenAIClient(json.dumps(VALID_CARD))
+    generate_prompt(story_brief, concept="Cafe", client=client)
+    system_msg = client.captured_kwargs["messages"][0]["content"]
+    assert "vertical leading lines" in system_msg  # 9:16 recipe, not the 1:1 one
+    assert "golden-ratio" not in system_msg
+
+
+def test_generate_prompt_embeds_brand_visual_identity_in_image_steering():
+    brand = load_brand("example-cafe")
+    client = _FakeOpenAIClient(json.dumps(VALID_CARD))
+    generate_prompt(BRIEF, concept="Grand Opening Cafe", brand=brand, client=client)
+    system_msg = client.captured_kwargs["messages"][0]["content"]
+    assert "BRAND VISUAL IDENTITY" in system_msg
+    assert "warm oak wood grain" in system_msg  # texture cue must reach the image prompt

@@ -14,5 +14,11 @@
     "placement_zone": "bottom-right",
     "clear_space_ratio": 0.08
   },
-  "voice": "warm, artisanal, community-first"
+  "voice": "warm, artisanal, community-first",
+  "visual_identity": {
+    "mood": "warm, artisanal, unhurried, community-first",
+    "lighting_warmth": "soft natural morning window light with gentle warm highlights",
+    "texture_cues": ["warm oak wood grain", "matte porcelain", "hand-thrown ceramic", "raw linen weave", "aged terracotta"],
+    "photographic_style": "high-end editorial photography, shallow depth of field, muted warm palette"
+  }
 }

@@ -9,6 +9,7 @@ from src.brand_profiles import (
     as_prompt_block,
     list_brands,
     load_brand,
+    visual_identity_block,
 )
 
 EXAMPLE_SLUG = "example-cafe"
@@ -51,6 +52,32 @@ def test_as_prompt_block_embeds_brand_json():
     assert "BRAND PROFILE" in block
     assert brand["slug"] in block
     assert "Montserrat Bold" in block
+
+
+def test_visual_identity_block_renders_image_steering():
+    brand = load_brand(EXAMPLE_SLUG)
+    block = visual_identity_block(brand)
+    assert "BRAND VISUAL IDENTITY" in block
+    assert "warm oak wood grain" in block  # texture cue
+    assert "morning window light" in block  # lighting warmth
+    assert "editorial photography" in block  # photographic register
+
+
+def test_visual_identity_block_empty_when_absent():
+    assert visual_identity_block({"slug": "bare", "name": "Bare"}) == ""
+
+
+def test_as_prompt_block_includes_visual_identity_when_present():
+    brand = load_brand(EXAMPLE_SLUG)
+    block = as_prompt_block(brand)
+    assert "BRAND VISUAL IDENTITY" in block
+    assert "warm oak wood grain" in block
+
+
+def test_as_prompt_block_omits_visual_identity_when_absent():
+    block = as_prompt_block({"slug": "bare", "name": "Bare", "signature_fonts": {}})
+    assert "BRAND PROFILE" in block
+    assert "BRAND VISUAL IDENTITY" not in block
 
 
 def test_load_brand_with_custom_directory(tmp_path: Path):

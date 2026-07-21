@@ -70,3 +70,11 @@ def test_build_brief_without_brand_omits_brand_section():
     build_brief("Grand Opening Cafe", client=client)
     system_msg = client.captured_kwargs["messages"][0]["content"]
     assert "BRAND PROFILE" not in system_msg
+
+
+def test_build_brief_steers_art_direction_with_aesthetic_taxonomy():
+    client = _FakeOpenAIClient(json.dumps(BRIEF))
+    build_brief("a cafe post", client=client)
+    system_msg = client.captured_kwargs["messages"][0]["content"]
+    assert "professional design taxonomy" in system_msg
+    assert "never" in system_msg.lower() and "generic adjectives" in system_msg

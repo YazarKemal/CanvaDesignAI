@@ -24,6 +24,7 @@ except ImportError:
 
 from src.brand_profiles import as_prompt_block as brand_prompt_block
 from src.canva_rules import CANVA_KNOWLEDGE_BASE
+from src.composition_rules import as_prompt_block as composition_prompt_block
 from src.constitution import as_prompt_block, load_constitution
 from src.llm_json import extract_json
 from src.schema import PromptValidationError, validate_prompt
@@ -66,8 +67,16 @@ OUTPUT_FORMAT_EXAMPLE = {
 }
 
 
-def _system_prompt(brand: dict[str, Any] | None = None) -> str:
+def _system_prompt(
+    brand: dict[str, Any] | None = None,
+    *,
+    aspect_ratio: str | None = None,
+    text_zone: str | None = None,
+) -> str:
     kb = json.dumps(CANVA_KNOWLEDGE_BASE, ensure_ascii=False, indent=2)
+    composition_section = ""
+    if aspect_ratio:
+        composition_section = f"\n\n{composition_prompt_block(aspect_ratio, text_zone)}"
     brand_section = ""
     if brand is not None:
         brand_section = (
@@ -92,7 +101,8 @@ def _system_prompt(brand: dict[str, Any] | None = None) -> str:
         "assumption yourself. Never ask for clarification.\n\n"
         f"{as_prompt_block(load_constitution())}\n\n"
         "CANVA KNOWLEDGE BASE:\n"
-        f"{kb}\n\n"
+        f"{kb}"
+        f"{composition_section}\n\n"
         "The three mandatory components:\n"
         "1. magic_media_prompt — one flowing, copy-paste-ready English prompt "
         "built per the magic_media_prompt rules above (subject -> medium -> "
@@ -165,7 +175,14 @@ def generate_prompt(
     response = client.chat.completions.create(
         model=model,
         messages=[
-            {"role": "system", "content": _system_prompt(brand)},
+            {
+                "role": "system",
+                "content": _system_prompt(
+                    brand,
+                    aspect_ratio=brief.get("aspect_ratio"),
+                    text_zone=brief.get("text_zone"),
+                ),
+            },
             {"role": "user", "content": user_message},
         ],
         temperature=0.3,
