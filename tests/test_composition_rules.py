@@ -1,11 +1,14 @@
 from src.composition_rules import (
     COMPOSITION_RULES,
     DEFAULT_RULE,
+    align_zone_language,
     as_prompt_block,
     aspect_family,
     composition_for,
     negative_space_for,
 )
+
+_CLAUSE = "with deliberate negative space reserved at the {zone} for the overlay"
 
 
 def test_aspect_family_normalizes_architect_format():
@@ -90,3 +93,54 @@ def test_every_rule_has_all_five_zones():
         assert set(rule["negative_space"]) == {"top", "bottom", "center", "left", "right"}
         for key in ("label", "composition", "lighting", "depth"):
             assert rule[key]
+
+
+def test_align_zone_language_rewrites_stale_direction():
+    text = "ample negative space at the top for overlaying text in Canva"
+    out = align_zone_language(text, "bottom", append_clause=_CLAUSE.format(zone="bottom"))
+    assert "negative space at the bottom" in out
+    assert "at the top" not in out
+
+
+def test_align_zone_language_leaves_camera_angle_untouched():
+    text = "top-down espresso cup, ample negative space at the top for text"
+    out = align_zone_language(text, "bottom", append_clause=_CLAUSE.format(zone="bottom"))
+    assert "top-down espresso cup" in out  # camera angle preserved
+    assert "negative space at the bottom" in out
+
+
+def test_align_zone_language_leaves_subject_placement_untouched():
+    # Only the negative-space direction is rewritten; the subject's own
+    # placement ("on the right") must stay put.
+    text = "the espresso cup on the right, negative space at the top for the headline"
+    out = align_zone_language(text, "left", append_clause=_CLAUSE.format(zone="left"))
+    assert "on the right" in out
+    assert "negative space at the left" in out
+    assert "at the top" not in out
+
+
+def test_align_zone_language_appends_when_no_zone_reference():
+    text = "A minimalist scene with warm oak textures and soft morning light."
+    out = align_zone_language(text, "bottom", append_clause=_CLAUSE.format(zone="bottom"))
+    assert "bottom" in out.lower()
+    assert out.count(".") == 1  # tidy single sentence terminator, no double period
+
+
+def test_align_zone_language_noop_when_already_correct():
+    text = "wide framing, empty negative space along the left for overlaying text"
+    out = align_zone_language(text, "left", append_clause=_CLAUSE.format(zone="left"))
+    assert out == text  # already consistent — untouched
+
+
+def test_align_zone_language_normalizes_centre_to_center():
+    text = "reserved area toward the centre for the headline"
+    out = align_zone_language(text, "center", append_clause=_CLAUSE.format(zone="center"))
+    assert "center" in out
+    assert "centre" not in out
+
+
+def test_align_zone_language_guarantees_zone_for_all_targets():
+    text = "A clean vector illustration of a coffee cup, isolated on a plain background."
+    for zone in ("top", "bottom", "center", "left", "right"):
+        out = align_zone_language(text, zone, append_clause=_CLAUSE.format(zone=zone))
+        assert zone in out.lower()
