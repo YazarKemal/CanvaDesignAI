@@ -3,7 +3,7 @@
 import json
 from io import StringIO
 
-from src.golden_cards import as_few_shot_block, get_golden_card
+from src.golden_cards import _best, as_few_shot_block, get_golden_card, get_golden_cards
 from src.style_presets import list_styles, load_style
 
 
@@ -54,6 +54,44 @@ def test_as_few_shot_block_returns_empty_for_unknown_style():
     """Unknown style_id must return empty string (silent skip, no crash)."""
     block = as_few_shot_block("this-style-does-not-exist")
     assert block == ""
+
+
+def test_every_preset_has_two_archetype_cards():
+    """After the story/carousel batch, every preset carries exactly two
+    golden cards (launch + story/carousel) — appends must never shadow
+    earlier archetypes."""
+    for slug in list_styles():
+        cards = get_golden_cards(slug)
+        assert len(cards) == 2, f"{slug}: expected 2 golden cards, got {len(cards)}"
+        assert all(c["score"] >= 9.0 for c in cards)
+
+
+def test_get_golden_card_picks_highest_scored_archetype():
+    """With multiple archetypes per style, the single-card lookup must return
+    the best-scored one (one reference = roughly half the few-shot token cost)."""
+    for slug in list_styles():
+        cards = get_golden_cards(slug)
+        if not cards:
+            continue
+        best = get_golden_card(slug)
+        assert best is not None
+        assert best["score"] == max(c["score"] for c in cards)
+
+
+def test_best_is_stable_on_ties():
+    a = {"style_id": "x", "score": 9.2, "brief": "first"}
+    b = {"style_id": "x", "score": 9.2, "brief": "second"}
+    assert _best([a, b])["brief"] == "first"  # earliest line wins on a tie
+
+
+def test_as_few_shot_block_injects_exactly_one_card():
+    """Even with two golden cards per style, the block embeds a single
+    reference — the token-cheap choice."""
+    for slug in ("warm-editorial-minimalist", "utility-planner-ornamental"):
+        block = as_few_shot_block(slug)
+        assert block.count("GOLDEN REFERENCE CARD") == 1
+        best = get_golden_card(slug)
+        assert f"{best['score']:.1f}" in block
 
 
 def test_every_golden_card_style_exists_in_presets():
