@@ -243,6 +243,51 @@ def validate_style_compliance(card: dict[str, Any], style: dict[str, Any]) -> No
             )
 
 
+def validate_negative_prompt_boost(card: dict[str, Any], style: dict[str, Any]) -> None:
+    """When a style preset carries `negative_prompt_boost`, the card's
+    `negative_prompt` MUST include at least half of the boost terms (minimum 2)
+    so the diffusion model receives the style's specific visual-clutter and
+    text-zone-violation exclusions — it is NOT enough for the LLM system prompt
+    to ask nicely; the actual card data must carry the terms.
+
+    This gate exists because decoratively dense presets (ornamental borders,
+    planner grids, glitch effects) are prone to two failure modes that prompt
+    instructions alone cannot reliably prevent:
+    1. Visual clutter: pseudo-text, fake glyphs, filled cells bleeding into
+       areas meant to stay empty.
+    2. Text-zone violations: decorative elements encroaching on the reserved
+       typography zone.
+
+    The "at least half" threshold keeps the gate strict enough to catch total
+    omissions while accommodating minor reordering/paraphrasing by the LLM."""
+    boost_raw = style.get("negative_prompt_boost", "")
+    if not boost_raw:
+        return
+
+    boost_terms = [t.strip() for t in boost_raw.split(",") if t.strip()]
+    if len(boost_terms) < 2:
+        return  # single-term boosts are too brittle to enforce
+
+    prompt_lower = card["negative_prompt"].lower()
+    missing: list[str] = []
+    for term in boost_terms:
+        if term.lower() not in prompt_lower:
+            missing.append(term)
+
+    required = max(2, (len(boost_terms) + 1) // 2)  # ceil(n/2), at least 2
+    found = len(boost_terms) - len(missing)
+
+    if found < required:
+        raise PromptValidationError(
+            f"negative_prompt is missing critical exclusion terms required by "
+            f"style '{style['slug']}'. Found only {found}/{required} of the "
+            f"required boost terms. Missing ({len(missing)}): {missing}. "
+            f"The negative_prompt MUST include at least {required} of these "
+            f"boost terms to prevent visual clutter and text-zone violations: "
+            f"{boost_terms}."
+        )
+
+
 def validate_prompt(
     card: dict[str, Any],
     *,
@@ -278,3 +323,4 @@ def validate_prompt(
 
     if style is not None:
         validate_style_compliance(card, style)
+        validate_negative_prompt_boost(card, style)
