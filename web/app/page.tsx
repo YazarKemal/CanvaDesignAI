@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BrandSelect } from "@/components/BrandSelect";
 import { ChatInput } from "@/components/ChatInput";
 import { ChatPromptCard } from "@/components/ChatPromptCard";
 import { StyleSelect } from "@/components/StyleSelect";
+import { pickRandom, SUGGESTIONS } from "@/lib/suggestions";
 import type { AdaptResponse, ChatResponse, LogEntry, TargetFormat } from "@/lib/types";
 
 const TOOLS = ["canva", "magic media", "dall-e 3", "midjourney"];
@@ -18,8 +19,16 @@ export default function Home() {
   const [adaptingId, setAdaptingId] = useState<number | null>(null);
   const [history, setHistory] = useState<string[]>([]);
   const [historyIdx, setHistoryIdx] = useState<number | null>(null);
+  const [suggestion, setSuggestion] = useState(() => pickRandom(SUGGESTIONS));
   const nextId = useRef(1);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  const cycleSuggestion = useCallback(() => {
+    setSuggestion((prev) => {
+      const idx = SUGGESTIONS.indexOf(prev);
+      return SUGGESTIONS[(idx + 1) % SUGGESTIONS.length];
+    });
+  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -47,6 +56,7 @@ export default function Home() {
     setHistoryIdx(null);
     setInput("");
     setLoading(true);
+    cycleSuggestion();
 
     const id = nextId.current++;
     try {
@@ -157,6 +167,8 @@ export default function Home() {
             onSubmit={submit}
             onHistoryPrev={historyPrev}
             disabled={loading}
+            suggestion={input ? undefined : suggestion}
+            onSuggestionAccept={cycleSuggestion}
           />
           <BrandSelect selected={brand} onChange={setBrand} />
           <details className="mt-2 text-xs text-zinc-600">
