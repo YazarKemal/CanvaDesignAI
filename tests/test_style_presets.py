@@ -231,6 +231,68 @@ def test_negative_prompt_boost_rendered_in_prompt_block():
     assert "Append these exclusions" not in plain
 
 
+def test_negative_prompt_boost_code_enforced_for_planner_preset():
+    """validate_prompt must reject a planner card whose negative_prompt omits
+    the style's negative_prompt_boost terms — visual clutter and text_zone
+    violations are code-enforced, not just system-prompt-requested."""
+    from src.schema import validate_negative_prompt_boost
+
+    planner = load_style("utility-planner-ornamental")
+
+    # -- Card missing most boost terms: should be rejected -------------------
+    weak_card = {
+        "magic_media_prompt": (
+            "An ornamental utility planner layout, the framed planner grid "
+            "itself as the isolated hero subject, geometric arabesque ornamental "
+            "border, empty ruled cells, top header band left empty as negative "
+            "space for typography."
+        ),
+        "negative_prompt": "embedded text, watermark, clutter",  # bare baseline only
+    }
+    with pytest.raises(PromptValidationError, match="negative_prompt"):
+        validate_negative_prompt_boost(weak_card, planner)
+
+    # -- Card with all boost terms verbatim: must pass -----------------------
+    full_card = {
+        "negative_prompt": planner["negative_prompt_boost"],
+    }
+    validate_negative_prompt_boost(full_card, planner)  # should not raise
+
+    # -- Card with exactly the minimum (5 of 9): must pass -------------------
+    min_card = {
+        "negative_prompt": (
+            "pseudo-text, fake letters, fake numerals, gibberish glyphs, "
+            "handwriting marks, low resolution, jpeg artifacts"
+        ),
+    }
+    validate_negative_prompt_boost(min_card, planner)  # should not raise
+
+
+def test_negative_prompt_boost_text_zone_protection_terms_are_present():
+    """The planner preset's negative_prompt_boost MUST include terms that
+    specifically protect against text_zone violations (ornamentation/decorative
+    elements bleeding into the reserved typography area), not just anti-clutter
+    terms like pseudo-text."""
+    planner = load_style("utility-planner-ornamental")
+    boost = planner["negative_prompt_boost"].lower()
+
+    # Anti-clutter terms (already present before this change)
+    assert "pseudo-text" in boost
+    assert "filled-in cells" in boost
+    assert "handwriting marks" in boost
+
+    # Text-zone-protection terms (newly added — these are the invariant)
+    assert "ornamentation bleeding into header band" in boost, (
+        "utility-planner-ornamental must protect its header text zone from "
+        "decorative bleed"
+    )
+    assert "decorative elements encroaching on reserved text zone" in boost, (
+        "utility-planner-ornamental must explicitly forbid decorative encroachment "
+        "on the reserved text zone"
+    )
+    assert "writing inside grid cells" in boost
+
+
 def test_utility_planner_reconciles_with_hero_subject_composition():
     # The planner preset reframes the grid as the composition recipes'
     # "isolated hero subject" so the two system-prompt sections agree, and a
@@ -244,7 +306,13 @@ def test_utility_planner_reconciles_with_hero_subject_composition():
         "concept": "Weekly Planner",
         "magic_media_prompt": planner["magic_media_keywords"][:-1]
         + ", the header band at the top left empty for overlaying text in Canva.",
-        "negative_prompt": "embedded text, numbers, letters, watermark, clutter",
+        "negative_prompt": (
+            "embedded text, numbers, letters, watermark, clutter, "
+            "pseudo-text, fake letters, fake numerals, gibberish glyphs, "
+            "handwriting marks, filled-in cells, writing inside grid cells, "
+            "ornamentation bleeding into header band, decorative elements "
+            "encroaching on reserved text zone"
+        ),
         "aspect_ratio": "2480x3508 (3:4 aspect)",
         "target_tool": "Canva Magic Media",
         "text_zone": "top",
