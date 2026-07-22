@@ -19,7 +19,9 @@ export default function Home() {
   const [adaptingId, setAdaptingId] = useState<number | null>(null);
   const [history, setHistory] = useState<string[]>([]);
   const [historyIdx, setHistoryIdx] = useState<number | null>(null);
-  const [suggestion, setSuggestion] = useState(() => pickRandom(SUGGESTIONS));
+  // Start with a deterministic value to avoid SSR hydration mismatch.
+  // The real random pick is deferred to a useEffect below (client-only).
+  const [suggestion, setSuggestion] = useState(SUGGESTIONS[0]);
   const nextId = useRef(1);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -33,6 +35,11 @@ export default function Home() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [entries, loading]);
+
+  // Defer random suggestion to client mount only — avoids SSR hydration mismatch.
+  useEffect(() => {
+    setSuggestion(pickRandom(SUGGESTIONS));
+  }, []);
 
   // ^c clears the log, terminal-style (only when nothing is selected).
   useEffect(() => {
