@@ -57,12 +57,16 @@ def test_as_few_shot_block_returns_empty_for_unknown_style():
 
 
 def test_every_preset_has_two_archetype_cards():
-    """After the story/carousel batch, every preset carries exactly two
-    golden cards (launch + story/carousel) — appends must never shadow
-    earlier archetypes."""
+    """Every preset carries at least two golden cards (launch + story/carousel
+    archetypes). Three presets (corporate-dynamic-vector, swiss-international-grid,
+    neo-grunge-streetwear) carry a third card covering the graphic_composition
+    layers (person cutout, CTA, giant typography, badge) — these are additive,
+    not shadowing earlier archetypes."""
+    gc_styles = {"corporate-dynamic-vector", "swiss-international-grid", "neo-grunge-streetwear"}
     for slug in list_styles():
         cards = get_golden_cards(slug)
-        assert len(cards) == 2, f"{slug}: expected 2 golden cards, got {len(cards)}"
+        expected = 3 if slug in gc_styles else 2
+        assert len(cards) == expected, f"{slug}: expected {expected} golden cards, got {len(cards)}"
         assert all(c["score"] >= 9.0 for c in cards)
 
 
