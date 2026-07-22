@@ -110,6 +110,11 @@ def review_prompt(
 
     If `brand` is given, its profile is embedded so the rubric's brand_fit
     criterion is judged against real constraints rather than guesswork.
+
+    When the LLM returns malformed JSON that even the repair heuristics in
+    ``src/llm_json`` cannot salvage, the call is retried once with a stern
+    "JSON ONLY" correction appended to the conversation.  This prevents a
+    single formatting glitch from crashing the entire pipeline.
     """
     constitution = load_constitution()
     rubric = constitution["review_rubric"]
@@ -133,19 +138,45 @@ def review_prompt(
 
             client = DeepSeekClient()  # type: ignore[assignment]
 
-    response = client.chat.completions.create(
-        model=model,
-        messages=[
-            {"role": "system", "content": _system_prompt(pass_threshold, rubric["criteria"], brand)},
-            {"role": "user", "content": f"Canva card to review:\n{json.dumps(card, ensure_ascii=False, indent=2)}"},
-        ],
-        temperature=0,
-    )
-    raw_text = response.choices[0].message.content or ""
+    messages: list[dict[str, str]] = [
+        {"role": "system", "content": _system_prompt(pass_threshold, rubric["criteria"], brand)},
+        {"role": "user", "content": f"Canva card to review:\n{json.dumps(card, ensure_ascii=False, indent=2)}"},
+    ]
 
-    try:
-        data = extract_json(raw_text)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"Reviewer did not return valid JSON: {exc}\nRaw: {raw_text}") from exc
+    for attempt in (1, 2):
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=0,
+        )
+        raw_text = response.choices[0].message.content or ""
 
-    return ReviewResult.from_json(data, pass_threshold)
+        try:
+            data = extract_json(raw_text)
+        except json.JSONDecodeError:
+            if attempt == 1:
+                # Append a stern correction and retry once.
+                messages.append({"role": "assistant", "content": raw_text})
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            "Your response was NOT valid JSON — it could not be "
+                            "parsed even after repair attempts.  You MUST respond "
+                            "with ONLY a single JSON object and NOTHING else.  "
+                            "No markdown fences, no prose, no commentary.  Just "
+                            '{"score": <float>, "criteria_scores": {...}, '
+                            '"feedback": "<string>"}.'
+                        ),
+                    }
+                )
+                continue
+            raise ValueError(
+                f"Reviewer did not return valid JSON after 2 attempts.\n"
+                f"Last raw: {raw_text[:500]}"
+            ) from None
+        else:
+            return ReviewResult.from_json(data, pass_threshold)
+
+    # Unreachable — the loop always returns or raises.
+    raise RuntimeError("unreachable")
