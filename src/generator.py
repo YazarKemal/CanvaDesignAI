@@ -57,6 +57,12 @@ OUTPUT_FORMAT_EXAMPLE = {
         "fonts": {"headline_font": "Montserrat Bold", "body_font": "Playfair Display"},
         "background_layers": "generated image fills the bottom 60%; solid cream rectangle layer behind the top 40% carries the headline/subtext",
         "magic_media_style": "Flat Vector",
+        "graphic_layers": {
+            "person_cutout": "clean-edged espresso cup and notebook illustration centred below the headline zone, flat vector isolated on transparent background",
+            "cta_button": "rounded pill 'Order Now' button in bottom-right corner filled with #4A2E1B, white Montserrat Bold text at 16 px, 40 px border-radius",
+            "giant_typography": "the word 'COFFEE' at 5× headline scale in Montserrat Bold at 10% opacity behind the main headline, overlapping the top text zone",
+            "badge": "small rounded pill badge reading 'NEW' in white on #D4A373, top-right corner at 12 px padding, 32 px height",
+        },
     },
     "direct_action_tip": [
         "PRIMARY (AI-Assistant Holistic Generation): Feed this entire design to your Canva-connected AI assistant (Claude or ChatGPT) as a single unified request — magic_media_prompt: 'A minimalist 3d flat vector illustration for a specialty coffee shop grand opening, earthy terracotta and warm cream color palette, top-down view of an espresso cup next to an open notebook, ample negative space at the top for overlaying text in Canva, vintage aesthetic, clean lines, isolated on a plain background.' | Headline: 'Grand Opening' | Subtext: 'Freshly roasted, every morning.' | Color palette: #4A2E1B, #D4A373, #F5EFE6 | Fonts: Montserrat Bold / Playfair Display | Format: 1:1 (1080x1080) | Composition: image fills bottom 60%, cream panel behind top 40% for typography. Generate the complete visual+typography+palette+fonts composition holistically in ONE pass.",
@@ -167,7 +173,11 @@ def _system_prompt(
         "short line, <=14 words), color_palette (3-5 real HEX codes), fonts "
         "{headline_font, body_font} from the typography.approved_pairings, "
         "background_layers (how the generated image and text layers stack — "
-        "MUST reference the same text_zone location).\n"
+        "MUST reference the same text_zone location), and — when the active "
+        "style preset carries graphic_composition rules — graphic_layers "
+        "{person_cutout, cta_button, giant_typography, badge} each as one "
+        "concrete, placeable instruction describing a separate Canva shape/text "
+        "element to add on top of the generated image.\n"
         "3. direct_action_tip — an ordered array of 3-5 steps per the "
         "direct_action_tip rules above. Step 1 is the PRIMARY path: a unified "
         "holistic-design instruction block for a Canva-connected AI assistant "

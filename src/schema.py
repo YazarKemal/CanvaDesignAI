@@ -76,6 +76,16 @@ PROMPT_CARD_SCHEMA: dict[str, Any] = {
                 },
                 "background_layers": {"type": "string", "minLength": 1},
                 "magic_media_style": {"type": "string"},
+                "graphic_layers": {
+                    "type": "object",
+                    "properties": {
+                        "person_cutout": {"type": "string"},
+                        "cta_button": {"type": "string"},
+                        "giant_typography": {"type": "string"},
+                        "badge": {"type": "string"},
+                    },
+                    "additionalProperties": True,
+                },
             },
             "additionalProperties": True,
         },
