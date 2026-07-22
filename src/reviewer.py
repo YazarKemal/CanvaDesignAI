@@ -1,9 +1,22 @@
-"""Reviewer agent (Stage 3): DeepSeek scores a Generator card against the
-Canva Automation Constitution.
+"""Reviewer agent (Stage 3): scores a Generator card against the Canva
+Automation Constitution.
 
-Single-engine architecture: DeepSeek runs Architect, Generator and Reviewer.
-It is fast and cheap enough to run on every Generator attempt without
-materially affecting cost/latency.
+Dual-provider architecture: defaults to DeepSeek (fast, cheap, single-engine
+parity with Architect and Generator), with an optional Anthropic/Claude mode
+enabled by setting REVIEWER_PROVIDER=anthropic in the environment. This lets
+operators trade cost/latency for a different reviewing aesthetic — Claude
+often produces more detailed, critical feedback, which can raise the quality
+ceiling on multi-attempt pipelines.
+
+When REVIEWER_PROVIDER is unset or set to "deepseek": the standard
+single-engine path is used (OpenAI SDK -> DeepSeek, or the pure-httpx
+DeepSeekClient fallback on Android/Termux).
+
+When REVIEWER_PROVIDER is set to "anthropic": the Reviewer uses
+src.http_client.AnthropicClient, which translates the existing
+OpenAI-format call into Anthropic's native Messages API. Set
+ANTHROPIC_API_KEY and optionally ANTHROPIC_MODEL (defaults to
+claude-3-5-sonnet-20241022) / ANTHROPIC_BASE_URL.
 
 This is also the "Critic" of the design-agency architecture — rather than
 adding a separate fourth LLM stage, the existing rubric gained a
@@ -32,6 +45,9 @@ from src.llm_json import extract_json
 
 DEFAULT_MODEL = "deepseek-chat"
 DEFAULT_BASE_URL = "https://api.deepseek.com"
+
+DEFAULT_ANTHROPIC_MODEL = "claude-3-5-sonnet-20241022"
+DEFAULT_ANTHROPIC_BASE_URL = "https://api.anthropic.com"
 
 
 @dataclass
@@ -100,13 +116,21 @@ def review_prompt(
     pass_threshold = float(rubric["pass_threshold"])
 
     if client is None:
-        if OpenAI is not None:
+        provider = os.environ.get("REVIEWER_PROVIDER", "deepseek").lower()
+        if provider == "anthropic":
+            from src.http_client import AnthropicClient
+
+            client = AnthropicClient()  # type: ignore[assignment]
+            if model == DEFAULT_MODEL:
+                model = os.environ.get("ANTHROPIC_MODEL", DEFAULT_ANTHROPIC_MODEL)
+        elif OpenAI is not None:
             client = OpenAI(
                 api_key=os.environ.get("DEEPSEEK_API_KEY"),
                 base_url=os.environ.get("DEEPSEEK_BASE_URL", DEFAULT_BASE_URL),
             )
         else:
             from src.http_client import DeepSeekClient
+
             client = DeepSeekClient()  # type: ignore[assignment]
 
     response = client.chat.completions.create(
