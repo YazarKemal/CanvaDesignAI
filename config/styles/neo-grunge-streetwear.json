@@ -11,5 +11,11 @@
     "negative space"
   ],
   "palette_hint": "monochrome black/white base (#0A0A0A near-black, #F5F5F5 near-white) plus one high-chroma neon accent (e.g. #39FF14)",
-  "best_for": "streetwear drops, underground music gigs, and youth-culture campaigns needing gritty monochrome with a neon punch"
+  "best_for": "streetwear drops, underground music gigs, and youth-culture campaigns needing gritty monochrome with a neon punch",
+  "graphic_composition": {
+    "person_cutout": "High-contrast black-and-white portrait with a distressed, photocopied-zine texture — rough edges, visible halftone grain, torn-paper border on one side. The subject stares directly into the lens with stark Rembrandt/split lighting that carves deep shadows across the face. Do NOT clean up the grain or smooth the edges — the rawness IS the aesthetic. Overlap the cutout slightly with the headline for tension.",
+    "cta_button": "Stencil-cut or spray-paint-stencil text rendered as a 'button' with rough, intentionally imperfect edges — a neon accent stroke (2-3 px, slightly offset) around near-black fill, or a solid neon rectangle with black stencil text inside. CTA text is 2-3 words in condensed bold uppercase: 'COP NOW', 'LISTEN LIVE', 'DROP 06.21'. The button sits in the bottom third with deliberate asymmetrical placement (not centred).",
+    "giant_typography": "One word from the headline blown up to 7-10× body scale in an ultra-condensed bold weight (Anton, Bebas Neue, or Helvetica Condensed Black), filled with a grunge texture overlay (scan lines, dust grain, or halftone dots) at 20-30% opacity, bleeding off one or two canvas edges. The giant type sits BEHIND the main headline in the layer stack, creating a shadow-echo effect.",
+    "badge": "Ticket-stub or price-tag shaped badge: a narrow horizontal strip with a circular punch-hole on one side (like a torn ticket), neon accent fill with black bold condensed text, placed diagonally in a corner with a slight rotation (3-5° off horizontal). Content: price point, date, or venue code ('$35', '10.21', 'BKLYN'). The badge MUST have a visibly rough/torn edge on at least one side."
+  }
 }

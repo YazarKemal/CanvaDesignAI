@@ -11,5 +11,11 @@
     "structured white space"
   ],
   "palette_hint": "Swiss reduction — signal red (#E30613) on paper white (#F4F4F2), anchored by near-black (#111111) for legible contrast",
-  "best_for": "corporate annual reports, editorial magazine layouts, and minimalist fashion branding with Helvetica precision"
+  "best_for": "corporate annual reports, editorial magazine layouts, and minimalist fashion branding with Helvetica precision",
+  "graphic_composition": {
+    "person_cutout": "High-contrast duotone photographic portrait using two colours from the palette, strictly aligned to the mathematical grid (occupying exactly 2-3 grid columns), shot with diffused overcast light for neutral objectivity. The cutout must be a clean geometric crop — no feathered edges, no drop shadow, no gradient fade. The subject gazes toward the headline, creating a directional reading line.",
+    "cta_button": "Flat rectangular button with sharp 0 px border-radius, filled with one solid palette colour and white or black Helvetica text (the colour that yields ≥ 4.5:1 contrast). The button aligns exactly to the grid baseline and spans exactly 2 grid columns. CTA text is 2-3 words, all lowercase per Swiss tradition: 'learn more', 'download now', 'register today'.",
+    "giant_typography": "Helvetica Bold or Akzidenz-Grotesk at 6-8× headline scale, set in a light tint (8-12% of the palette's darkest colour) behind the main content block, spanning 4-6 grid columns. The giant type acts as a structural anchor — an architectural element, not decoration. It must touch at least one grid margin exactly.",
+    "badge": "Square or near-square geometric badge (no rounded corners) filled with a flat palette accent colour, aligned to grid intersections. Content: a short code ('ISSUE 04', 'A2', '2026') set in Helvetica Regular at exactly 1 grid-unit size. The badge must sit precisely on a grid cross-point with its edges parallel to grid lines."
+  }
 }

@@ -121,6 +121,26 @@ def as_prompt_block(
             f"- Append these exclusions to negative_prompt verbatim (this preset's "
             f"known failure mode): {style['negative_prompt_boost']}."
         )
+    # -- Graphic composition layer directives ---------------------------------
+    gc = style.get("graphic_composition")
+    if gc:
+        lines.append(
+            "\nGRAPHIC COMPOSITION LAYERS (mandatory — this style requires four "
+            "additional decorative layers in layer_typography_architecture."
+            "graphic_layers as separate Canva shape/text elements on top of the "
+            "generated image. Each layer is a concrete, placeable instruction "
+            "the paste_render will quote verbatim to the receiving assistant. "
+            "Follow the style-specific specs below exactly — sizes, colours, "
+            "alignment, and edge treatment are NOT suggestions.):"
+        )
+        if gc.get("person_cutout"):
+            lines.append(f"  person_cutout: {gc['person_cutout']}")
+        if gc.get("cta_button"):
+            lines.append(f"  cta_button: {gc['cta_button']}")
+        if gc.get("giant_typography"):
+            lines.append(f"  giant_typography: {gc['giant_typography']}")
+        if gc.get("badge"):
+            lines.append(f"  badge: {gc['badge']}")
     lines.append(
         "- Any negative-space wording in these keywords must defer to the brief's "
         "text_zone — reserve that empty space at the text_zone location, not "

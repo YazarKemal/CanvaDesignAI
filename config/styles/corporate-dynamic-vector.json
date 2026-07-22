@@ -11,5 +11,11 @@
     "highly isolated subject"
   ],
   "palette_hint": "clean corporate gradient (e.g. #0057FF to #00B4D8) anchored with a near-white (#F8FAFC) for legible contrast",
-  "best_for": "tech launches, SaaS products, and professional agency presentations needing a clean, modern corporate gradient look"
+  "best_for": "tech launches, SaaS products, and professional agency presentations needing a clean, modern corporate gradient look",
+  "graphic_composition": {
+    "person_cutout": "Clean-edged isolated product shot or device silhouette, flat vector rendering with no background bleed, centred below the headline zone, softbox-lit with no rim spill — the subject floats on the gradient with a subtle drop shadow for depth separation.",
+    "cta_button": "Rounded pill button (border-radius 40 px) with the corporate gradient as fill and white bold sans-serif text, placed in the bottom-right quadrant with generous surrounding negative space so it anchors the visual hierarchy without crowding the headline. CTA text MUST be 2-4 words imperative ('Start Free Trial', 'Get Early Access').",
+    "giant_typography": "One single keyword from the headline set at 4-6× body scale behind the main headline layer, 12-15% opacity, same font family as the headline, positioned to overlap the vector wave elements so the oversized type and the waves create a single cohesive graphic mass.",
+    "badge": "Small rounded pill badge (height ~32 px) in a solid palette accent colour with white text, placed in the top-right corner or directly above the CTA. Typical content: 'NEW', '2026', 'v2.0', or a price point like '$49/mo'. Must feel like a UI component — clean stroke, no drop shadow."
+  }
 }

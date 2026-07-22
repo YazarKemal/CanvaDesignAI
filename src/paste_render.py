@@ -62,9 +62,26 @@ def render_for_assistant_paste(card: dict[str, Any]) -> str:
         f"  Composition: {layer['background_layers']}",
         f"  Text zone: {card['text_zone']}",
         f"  Magic Media style: {layer.get('magic_media_style', 'N/A')}",
-        "",
-        "Alternative — manual Canva steps:",
     ]
+
+    # -- Graphic layers (person cutout, CTA, giant type, badge) --------------
+    graphic = layer.get("graphic_layers")
+    if graphic and isinstance(graphic, dict):
+        lines.append("")
+        lines.append(
+            "Graphic composition layers (decorative elements — add each as a "
+            "separate Canva shape or text layer on top of the generated image):"
+        )
+        if graphic.get("person_cutout"):
+            lines.append(f"  Person cutout: {graphic['person_cutout']}")
+        if graphic.get("cta_button"):
+            lines.append(f"  CTA button: {graphic['cta_button']}")
+        if graphic.get("giant_typography"):
+            lines.append(f"  Giant typography: {graphic['giant_typography']}")
+        if graphic.get("badge"):
+            lines.append(f"  Badge: {graphic['badge']}")
+
+    lines.extend(["", "Alternative — manual Canva steps:"])
     # Render the direct_action_tip steps; the first is the primary AI-assistant
     # path and the rest are the manual alternative.
     lines.extend(f"  {i}. {step}" for i, step in enumerate(card["direct_action_tip"], start=1))
