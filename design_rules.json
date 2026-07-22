@@ -1,7 +1,7 @@
 {
   "$schema": "https://canvadesignai.dev/schemas/art-director-constitution-v2.json",
   "name": "CaVDesign Canva Automation Constitution",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "description": "Canonical rules for a Canva-only automation engine. Every stage (Architect, Generator, Reviewer) runs on DeepSeek and must return a single machine-consumable Canva card — never chat, never a question, never prose outside the card's fields. This project outputs cards ONLY: it never generates images and never touches Canva or any external tool on the user's behalf.",
 
   "output_contract": {
@@ -9,7 +9,7 @@
     "mandatory_components": [
       "magic_media_prompt — a single English prompt, paste-ready for Canva Magic Media / DALL-E 3.",
       "layer_typography_architecture — headline, subtext, HEX color_palette, headline/body font pairing, and background layer distribution.",
-      "direct_action_tip — an ordered list of short, concrete steps for assembling this exact design inside Canva as fast as possible."
+      "direct_action_tip — an ordered array of 3-5 steps: first entry is the PRIMARY holistic AI-assistant instruction (a unified block listing all design parameters inline for single-pass generation), remaining entries are the ALTERNATIVE manual Magic Media path."
     ],
     "forbidden_chat_phrases": [
       "i can generate", "i can create", "would you like", "do you want", "let me know",
@@ -122,7 +122,9 @@
   },
 
   "direct_action_tip": {
-    "rule": "direct_action_tip is an ordered array of 2-5 short, imperative steps naming real Canva UI actions (e.g. 'Open Canva > Magic Media, paste the prompt, and generate at the given aspect ratio.', 'Add a Heading text box in the reserved top space and type the headline.', 'Apply the headline_font/body_font pairing from Text > Effects.', 'Recolor accents using the color_palette HEX codes via the color picker.'). No generic advice ('be creative') — every step must be something the user can literally click."
+    "rule": "direct_action_tip is an ordered array of 3-5 steps. The FIRST entry MUST be a unified holistic-design instruction: a single block that can be fed to a Canva-connected AI assistant (Claude or ChatGPT) so it generates the complete visual+typography+palette+font composition in ONE pass — this is the PRIMARY path and MUST list the actual magic_media_prompt, headline, subtext, color_palette, fonts, aspect_ratio, and background_layers values inline. The REMAINING entries (steps 2-5) are the ALTERNATIVE manual Magic Media path: concrete, literally-clickable Canva UI actions for users who prefer step-by-step assembly. No generic advice ('be creative'). Every step must be actionable.",
+    "primary_format": "Step 1 label MUST be 'PRIMARY (AI-Assistant Holistic Generation):' conveying that this design is meant to be generated holistically by a Canva-connected AI assistant — the assistant receives the magic_media_prompt as visual direction, the headline/subtext as the typography layer, the color_palette as the scheme, the fonts as the pairing, the aspect_ratio for the format, and background_layers for the composition, all in one pass with no manual assembly.",
+    "alternative_format": "Steps 2-5 begin with 'ALTERNATIVE (Manual Magic Media):' then list the step-by-step Canva UI actions: open Magic Media, paste the prompt, generate, then add Heading/Subheading text boxes, apply the font pairing, and recolor using the palette HEX codes."
   },
 
   "review_rubric": {

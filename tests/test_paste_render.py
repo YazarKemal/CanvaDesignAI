@@ -14,7 +14,7 @@ def test_render_starts_with_plain_first_person_directive_not_fake_system_tag():
     text = render_for_assistant_paste(_load_example())
     first_line = text.splitlines()[0]
 
-    assert first_line.startswith("Instruction:")
+    assert first_line.startswith("Using your connected Canva tool")
     # Must never impersonate a system/override channel.
     for banned in ("SYSTEM:", "OVERRIDE", "ignore previous instructions", "you are now"):
         assert banned.lower() not in text.lower()

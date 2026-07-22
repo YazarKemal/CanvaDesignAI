@@ -59,11 +59,11 @@ OUTPUT_FORMAT_EXAMPLE = {
         "magic_media_style": "Flat Vector",
     },
     "direct_action_tip": [
-        "Open Canva > Apps > Magic Media, paste magic_media_prompt, generate at 1:1 (1080x1080).",
-        "Add a Heading text box in the empty top space and type the headline.",
-        "Add a Subheading text box below it with the subtext.",
-        "Set Text > Font to the headline_font/body_font pairing.",
-        "Recolor the text and any shape accents using the color_palette HEX codes via the color picker.",
+        "PRIMARY (AI-Assistant Holistic Generation): Feed this entire design to your Canva-connected AI assistant (Claude or ChatGPT) as a single unified request — magic_media_prompt: 'A minimalist 3d flat vector illustration for a specialty coffee shop grand opening, earthy terracotta and warm cream color palette, top-down view of an espresso cup next to an open notebook, ample negative space at the top for overlaying text in Canva, vintage aesthetic, clean lines, isolated on a plain background.' | Headline: 'Grand Opening' | Subtext: 'Freshly roasted, every morning.' | Color palette: #4A2E1B, #D4A373, #F5EFE6 | Fonts: Montserrat Bold / Playfair Display | Format: 1:1 (1080x1080) | Composition: image fills bottom 60%, cream panel behind top 40% for typography. Generate the complete visual+typography+palette+fonts composition holistically in ONE pass.",
+        "ALTERNATIVE (Manual Magic Media): Open Canva > Apps > Magic Media, paste the magic_media_prompt, and generate at 1:1 (1080x1080).",
+        "Add a Heading text box in the empty top space and type the headline 'Grand Opening'.",
+        "Add a Subheading text box below it with the subtext 'Freshly roasted, every morning.'.",
+        "Set the fonts to Montserrat Bold / Playfair Display and recolor using #4A2E1B, #D4A373, #F5EFE6 via the color picker.",
     ],
     "canva_keywords": ["flat vector illustration", "isolated element on transparent background"],
 }
@@ -168,8 +168,14 @@ def _system_prompt(
         "{headline_font, body_font} from the typography.approved_pairings, "
         "background_layers (how the generated image and text layers stack — "
         "MUST reference the same text_zone location).\n"
-        "3. direct_action_tip — an ordered array of 2-5 concrete, literally-"
-        "clickable Canva steps per the direct_action_tip rules above."
+        "3. direct_action_tip — an ordered array of 3-5 steps per the "
+        "direct_action_tip rules above. Step 1 is the PRIMARY path: a unified "
+        "holistic-design instruction block for a Canva-connected AI assistant "
+        "(Claude/ChatGPT) that lists the actual magic_media_prompt, headline, "
+        "subtext, color_palette, fonts, aspect_ratio, and background_layers "
+        "values INLINE so the assistant can compose the entire visual+typography"
+        "+palette+fonts composition in ONE pass. Steps 2-5 are the ALTERNATIVE "
+        "manual Magic Media path: concrete, literally-clickable Canva UI steps."
         f"{style_section}"
         f"{brand_section}\n\n"
         "text_zone — copy the brief's text_zone value verbatim (top/bottom/"

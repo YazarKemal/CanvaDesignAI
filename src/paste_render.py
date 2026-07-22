@@ -29,31 +29,41 @@ from typing import Any
 
 def render_for_assistant_paste(card: dict[str, Any]) -> str:
     """Render `card` as a plain-text block to paste into a Claude/ChatGPT
-    chat that has a Canva tool connected."""
+    chat that has a Canva tool connected.
+
+    The block leads with a unified holistic-design instruction — the full
+    magic_media_prompt + headline + subtext + palette + fonts + format +
+    composition in one block so the receiving AI assistant can generate the
+    complete design in a single pass. Alternative manual Magic Media steps
+    follow as a secondary path.
+    """
     layer = card["layer_typography_architecture"]
+    fonts = layer["fonts"]
+    palette = ", ".join(layer["color_palette"])
 
     lines = [
-        f"Instruction: Using your connected Canva tool, generate this design now "
-        f"at {card['aspect_ratio']} in {card['target_tool']}. Do not ask me any "
-        f"clarifying questions — apply the parameters below exactly and proceed "
-        f"directly.",
+        f"Using your connected Canva tool, generate this design now at "
+        f"{card['aspect_ratio']} — a single holistic composition with the "
+        f"visual, typography, palette, and fonts all composed together in "
+        f"one pass. Do not ask me any clarifying questions.",
         "",
-        f"Concept: {card['concept']}",
+        "UNIFIED DESIGN BRIEF:",
+        f"  Visual direction: {card['magic_media_prompt']}",
+        f"  Negative prompt: {card['negative_prompt']}",
+        f"  Headline: {layer['headline']}",
+        f"  Subtext: {layer['subtext']}",
+        f"  Color palette: {palette}",
+        f"  Fonts: {fonts['headline_font']} / {fonts['body_font']}",
+        f"  Format: {card['aspect_ratio']}",
+        f"  Target tool: {card['target_tool']}",
+        f"  Composition: {layer['background_layers']}",
+        f"  Text zone: {card['text_zone']}",
+        f"  Magic Media style: {layer.get('magic_media_style', 'N/A')}",
         "",
-        "Magic Media prompt:",
-        card["magic_media_prompt"],
-        "",
-        f"Negative prompt: {card['negative_prompt']}",
-        "",
-        "Layer & typography architecture:",
-        f"- Headline: {layer['headline']}",
-        f"- Subtext: {layer['subtext']}",
-        f"- Color palette: {', '.join(layer['color_palette'])}",
-        f"- Fonts: {layer['fonts']['headline_font']} / {layer['fonts']['body_font']}",
-        f"- Background layers: {layer['background_layers']}",
-        "",
-        "Direct action steps:",
+        "Alternative — manual Canva steps:",
     ]
-    lines.extend(f"{i}. {step}" for i, step in enumerate(card["direct_action_tip"], start=1))
+    # Render the direct_action_tip steps; the first is the primary AI-assistant
+    # path and the rest are the manual alternative.
+    lines.extend(f"  {i}. {step}" for i, step in enumerate(card["direct_action_tip"], start=1))
 
     return "\n".join(lines)
