@@ -50,10 +50,13 @@ def render_for_assistant_paste(card: dict[str, Any]) -> str:
         "UNIFIED DESIGN BRIEF:",
         f"  Visual direction: {card['magic_media_prompt']}",
         f"  Negative prompt: {card['negative_prompt']}",
-        f"  Headline: {layer['headline']}",
-        f"  Subtext: {layer['subtext']}",
-        f"  Color palette: {palette}",
-        f"  Fonts: {fonts['headline_font']} / {fonts['body_font']}",
+        f"  Headline (this is the visible title text on the design): {layer['headline']}",
+        f"  Subtext (this is the visible supporting text on the design): {layer['subtext']}",
+        f"  Color palette (typography styling only — apply these HEX codes as "
+        f"fill/stroke colors; do NOT render the codes as visible text): {palette}",
+        f"  Fonts (typography styling only — apply these as the font family "
+        f"for the headline/subtext layers; do NOT render the font names as "
+        f"visible text on the design): {fonts['headline_font']} / {fonts['body_font']}",
         f"  Format: {card['aspect_ratio']}",
         f"  Target tool: {card['target_tool']}",
         f"  Composition: {layer['background_layers']}",

@@ -51,3 +51,14 @@ def test_render_includes_aspect_ratio_and_target_tool():
     text = render_for_assistant_paste(card)
     assert card["aspect_ratio"] in text
     assert card["target_tool"] in text
+
+
+def test_unified_brief_warns_fonts_and_palette_are_styling_not_visible_text():
+    """Font names and HEX codes are typography-layer instructions, not
+    visible text to render. Without explicit disclaimers, some AI design
+    tools misinterpret them and render the raw values on the card."""
+    text = render_for_assistant_paste(_load_example())
+    assert "do NOT render the font names as visible text" in text
+    assert "do NOT render the codes as visible text" in text
+    assert "this is the visible title text" in text.lower()
+    assert "this is the visible supporting text" in text.lower()
