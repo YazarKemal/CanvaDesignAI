@@ -21,15 +21,17 @@ GOLDEN_CARDS_PATH = Path(__file__).resolve().parent.parent / "data" / "golden_ca
 
 # Loaded once at module-import time and kept in a module-level dict so
 # every Generator call reuses the same in-memory index (zero disk I/O after
-# the first import).
-_index: dict[str, dict[str, Any]] = {}
+# the first import). A style_id may have MULTIPLE golden cards (one per
+# brief archetype — launch, story/carousel, ...), so the index maps to a
+# list rather than letting the last line silently shadow earlier ones.
+_index: dict[str, list[dict[str, Any]]] = {}
 
 
-def _load() -> dict[str, dict[str, Any]]:
+def _load() -> dict[str, list[dict[str, Any]]]:
     """Parse golden_cards.jsonl, index by style_id.  Called once at import."""
     if not GOLDEN_CARDS_PATH.exists():
         return {}
-    index: dict[str, dict[str, Any]] = {}
+    index: dict[str, list[dict[str, Any]]] = {}
     with open(GOLDEN_CARDS_PATH, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
@@ -41,16 +43,36 @@ def _load() -> dict[str, dict[str, Any]]:
                 continue
             sid = obj.get("style_id")
             if sid:
-                index[sid] = obj
+                index.setdefault(sid, []).append(obj)
     return index
 
 
 _index = _load()
 
 
+def _best(cards: list[dict[str, Any]]) -> dict[str, Any]:
+    """Highest-scored card wins; on a tie, the earliest line (stable)."""
+    return max(cards, key=lambda c: c.get("score", 0))
+
+
+def get_golden_cards(style_id: str) -> list[dict[str, Any]]:
+    """All golden cards for *style_id* (empty list if none)."""
+    return list(_index.get(style_id, []))
+
+
 def get_golden_card(style_id: str) -> dict[str, Any] | None:
-    """Return the golden card for *style_id*, or ``None`` if not found."""
-    return _index.get(style_id)
+    """Return the single BEST golden card for *style_id* (highest score),
+    or ``None`` if the style has no golden cards.
+
+    When a style has cards from several brief archetypes, only the
+    top-scoring one is returned — injecting one reference instead of all
+    of them keeps the few-shot block (and thus every Generator call)
+    at roughly half the token cost for no measured quality loss.
+    """
+    cards = _index.get(style_id)
+    if not cards:
+        return None
+    return _best(cards)
 
 
 def as_few_shot_block(style_id: str) -> str:
