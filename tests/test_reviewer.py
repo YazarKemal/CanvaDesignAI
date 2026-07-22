@@ -303,3 +303,99 @@ def test_anthropic_client_base_url_property():
 
     client = AnthropicClient(api_key="sk-ant-test", base_url="https://api.anthropic.com")
     assert client.base_url == "https://api.anthropic.com"
+
+
+# -- Reviewer JSON retry tests -------------------------------------------------
+
+
+class _MultiResponseClient:
+    """Fake client that returns a different response on each call, simulating
+    a Reviewer LLM that first emits broken JSON then corrects on retry."""
+
+    def __init__(self, *replies: str):
+        self._replies = list(replies)
+        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+        self.captured_messages: list[list[dict[str, str]]] = []
+        self.call_count = 0
+
+    def _create(self, **kwargs):
+        self.call_count += 1
+        self.captured_messages.append(kwargs.get("messages", []))
+        idx = min(self.call_count, len(self._replies)) - 1
+        reply = self._replies[idx]
+        message = SimpleNamespace(content=reply)
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+
+def test_review_prompt_retries_on_broken_json():
+    """When the first response is unparseable JSON, review_prompt must retry
+    once and succeed on the second attempt."""
+    broken = "score 9.0 criteria_scores feedback"  # not even close to JSON
+    valid = '{"score": 9.1, "criteria_scores": {"format_discipline": 10}, "feedback": ""}'
+    client = _MultiResponseClient(broken, valid)
+
+    result = review_prompt(CARD, client=client, model="deepseek-chat")
+
+    assert result.passed is True
+    assert result.score == 9.1
+    assert client.call_count == 2
+    # The second call must carry the correction message.
+    assert len(client.captured_messages) == 2
+    msgs2 = client.captured_messages[1]
+    assert len(msgs2) == 4  # system + user + assistant(broken) + correction
+    assert "NOT valid JSON" in msgs2[3]["content"]
+
+
+def test_review_prompt_raises_after_two_failures():
+    """When both attempts produce broken JSON, raise ValueError."""
+    broken1 = "still not json"
+    broken2 = "also garbage"
+    client = _MultiResponseClient(broken1, broken2)
+
+    with pytest.raises(ValueError, match="after 2 attempts"):
+        review_prompt(CARD, client=client, model="deepseek-chat")
+
+    assert client.call_count == 2
+
+
+def test_review_prompt_no_retry_when_first_call_succeeds():
+    """With valid JSON on the first attempt, there must be exactly one call."""
+    valid = '{"score": 9.0, "criteria_scores": {}, "feedback": ""}'
+    client = _MultiResponseClient(valid)
+
+    result = review_prompt(CARD, client=client, model="deepseek-chat")
+    assert result.passed is True
+    assert client.call_count == 1
+
+
+def test_review_prompt_retry_with_repairable_json_succeeds_in_one_call():
+    """JSON with minor repairable flaws (trailing comma) must succeed
+    without needing the retry path — extract_json repairs it inline."""
+    repairable = (
+        '{"score": 8.9, "criteria_scores": {"concept_fidelity": 9.0,},'
+        '"feedback": "add space",}'
+    )
+    client = _MultiResponseClient(repairable)
+
+    result = review_prompt(CARD, client=client, model="deepseek-chat")
+    assert result.score == 8.9
+    assert result.criteria_scores["concept_fidelity"] == 9.0
+    assert client.call_count == 1  # repaired inline, no retry needed
+
+
+def test_review_prompt_retry_appends_correction_to_conversation():
+    """Verify the correction message structure: the retry appends the broken
+    response as 'assistant' and the stern correction as 'user'."""
+    broken = "not valid json at all seriously"
+    valid = '{"score": 8.7, "criteria_scores": {}, "feedback": "fixed"}'
+    client = _MultiResponseClient(broken, valid)
+
+    review_prompt(CARD, client=client, model="deepseek-chat")
+
+    # Conversation after retry: system, user, assistant(broken), user(correction)
+    msgs = client.captured_messages[1]
+    assert msgs[2]["role"] == "assistant"
+    assert msgs[2]["content"] == broken
+    assert msgs[3]["role"] == "user"
+    assert "NOT valid JSON" in msgs[3]["content"]
+    assert '"score"' in msgs[3]["content"]
