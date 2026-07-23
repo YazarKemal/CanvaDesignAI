@@ -3,7 +3,7 @@
 import { useState } from "react";
 import {
   formatForAspectRatio,
-  TARGET_FORMAT_LABELS,
+  TARGET_FORMAT_ASPECT_RATIOS,
   type LogEntry,
   type PromptCard,
   type TargetFormat,
@@ -91,39 +91,34 @@ function ContrastLine({ ratio }: { ratio?: number }) {
   );
 }
 
-function AdaptButtons({
-  card,
-  onAdapt,
-  adapting,
+function FormatTabs({
+  formats,
+  activeFormat,
+  onSelect,
 }: {
-  card: PromptCard;
-  onAdapt?: (format: TargetFormat) => void;
-  adapting?: boolean;
+  formats: TargetFormat[];
+  activeFormat: TargetFormat | null;
+  onSelect: (format: TargetFormat) => void;
 }) {
-  if (!onAdapt) return null;
-
-  const activeFormat = formatForAspectRatio(card.aspect_ratio);
-
-  const otherFormats = (Object.keys(TARGET_FORMAT_LABELS) as TargetFormat[]).filter(
-    (fmt) => fmt !== activeFormat,
-  );
-  if (otherFormats.length === 0) return null;
+  if (formats.length <= 1) return null;
 
   return (
-    <p className="mt-3 text-xs text-zinc-600">
-      adapt to:{" "}
-      {otherFormats.map((fmt) => (
+    <div className="mt-3 flex gap-1 border-b border-zinc-800">
+      {formats.map((fmt) => (
         <button
           key={fmt}
           type="button"
-          disabled={adapting}
-          onClick={() => onAdapt(fmt)}
-          className="ml-1 border border-zinc-700 px-2 py-0.5 text-zinc-400 transition-colors hover:bg-white hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
+          onClick={() => onSelect(fmt)}
+          className={`px-3 py-1.5 text-xs transition-colors ${
+            fmt === activeFormat
+              ? "border-b-2 border-white text-white -mb-[1px]"
+              : "text-zinc-500 hover:text-zinc-300"
+          }`}
         >
-          {adapting ? "…" : TARGET_FORMAT_LABELS[fmt]}
+          {TARGET_FORMAT_ASPECT_RATIOS[fmt]}
         </button>
       ))}
-    </p>
+    </div>
   );
 }
 
@@ -170,14 +165,10 @@ function CardBody({
   card,
   pasteText,
   contrastRatio,
-  onAdapt,
-  adapting,
 }: {
   card: PromptCard;
   pasteText?: string;
   contrastRatio?: number;
-  onAdapt?: (format: TargetFormat) => void;
-  adapting?: boolean;
 }) {
   const d = resolveCardData(card);
   const tip = card.direct_action_tip ?? [];
@@ -195,8 +186,8 @@ function CardBody({
         {buildWireframe(card.text_zone).join("\n")}
       </pre>
 
-      {/* 1. Magic Media prompt — the copy-paste payload */}
-      <p className="mt-3 text-xs text-zinc-600">01 // magic media prompt</p>
+      {/* 1. Background — the copy-paste payload */}
+      <p className="mt-3 text-xs text-zinc-600">01 // background</p>
       <div className="relative mt-1 border border-zinc-800 bg-zinc-950 p-3 pr-16">
         <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-300">
           {d.magic_media_prompt}
@@ -206,7 +197,7 @@ function CardBody({
       <p className="mt-1 text-xs text-zinc-600">neg: {d.negative_prompt}</p>
 
       {/* 2. Layer & typography architecture */}
-      <p className="mt-3 text-xs text-zinc-600">02 // layer &amp; typography architecture</p>
+      <p className="mt-3 text-xs text-zinc-600">02 // layer &amp; typography</p>
       <div className="mt-1 space-y-1 border border-zinc-800 bg-zinc-950 p-3 text-xs text-zinc-400">
         <p>
           headline: <span className="text-zinc-200">{d.headline}</span>
@@ -242,21 +233,14 @@ function CardBody({
           />
         </div>
       ) : null}
-
-      {/* Omni-Channel: on-demand adaptation to other formats */}
-      <AdaptButtons card={card} onAdapt={onAdapt} adapting={adapting} />
     </>
   );
 }
 
 export function ChatPromptCard({
   entry,
-  onAdapt,
-  adapting,
 }: {
   entry: LogEntry;
-  onAdapt?: (format: TargetFormat) => void;
-  adapting?: boolean;
 }) {
   // Terminal log entry: a left border, flowing top-to-bottom. No bubbles.
   if (entry.error) {
@@ -268,7 +252,25 @@ export function ChatPromptCard({
     );
   }
 
-  const card = entry.card!;
+  // Determine all available formats from primary + variants.
+  const primaryFormat = entry.card ? formatForAspectRatio(entry.card.aspect_ratio) : null;
+  const availableFormats: TargetFormat[] = [];
+  if (primaryFormat) availableFormats.push(primaryFormat);
+  if (entry.variants) {
+    for (const fmt of Object.keys(entry.variants) as TargetFormat[]) {
+      if (!availableFormats.includes(fmt)) availableFormats.push(fmt);
+    }
+  }
+
+  const [activeFormat, setActiveFormat] = useState<TargetFormat | null>(primaryFormat);
+
+  // Resolve card data from the active format (primary or variant).
+  const isVariant = activeFormat && activeFormat !== primaryFormat && entry.variants?.[activeFormat];
+  const activeCard: PromptCard = isVariant ? entry.variants![activeFormat!].card : entry.card!;
+  const activePasteText = isVariant ? entry.variants![activeFormat!].paste_text : entry.pasteText;
+  const activeContrastRatio = isVariant ? entry.variants![activeFormat!].contrast_ratio : entry.contrastRatio;
+
+  const card = activeCard;
   const status =
     entry.approved === false
       ? `best-effort · ${entry.score?.toFixed(1)}`
@@ -288,12 +290,17 @@ export function ChatPromptCard({
         </p>
       )}
 
+      {/* Format Tabs — switch between Story / Post / Banner */}
+      <FormatTabs
+        formats={availableFormats}
+        activeFormat={activeFormat}
+        onSelect={setActiveFormat}
+      />
+
       <CardBody
         card={card}
-        pasteText={entry.pasteText}
-        contrastRatio={entry.contrastRatio}
-        onAdapt={onAdapt}
-        adapting={adapting}
+        pasteText={activePasteText}
+        contrastRatio={activeContrastRatio}
       />
     </div>
   );

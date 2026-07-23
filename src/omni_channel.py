@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from typing import Any
 
 try:
@@ -27,7 +28,7 @@ from src.canva_rules import CANVA_KNOWLEDGE_BASE
 from src.composition_rules import align_zone_language
 from src.composition_rules import as_prompt_block as composition_prompt_block
 from src.llm_json import extract_json
-from src.schema import PromptValidationError, validate_prompt
+from src.schema import PromptValidationError, _ensure_hybrid_format, validate_prompt
 
 DEFAULT_MODEL = "deepseek-chat"
 DEFAULT_BASE_URL = "https://api.deepseek.com"
@@ -38,6 +39,25 @@ TARGET_FORMATS: dict[str, str] = {
     "instagram_story": CANVA_KNOWLEDGE_BASE["dimensions"]["instagram_story"],
     "banner": CANVA_KNOWLEDGE_BASE["dimensions"]["banner"],
 }
+
+# Reverse mapping: ratio short-form → format key.
+_RATIO_TO_FORMAT: dict[str, str] = {
+    "1:1": "instagram_post",
+    "9:16": "instagram_story",
+    "16:9": "banner",
+}
+
+
+def detect_format_from_aspect_ratio(aspect_ratio: str) -> str | None:
+    """Map a card's aspect_ratio string to the matching TARGET_FORMATS key.
+
+    Handles both ``"1:1 (1080x1080)"`` and ``"1080x1080 (1:1)"`` by
+    extracting just the ratio portion.
+    """
+    match = re.search(r"(\d+:\d+)", aspect_ratio)
+    if not match:
+        return None
+    return _RATIO_TO_FORMAT.get(match.group(1))
 
 
 class UnknownFormatError(ValueError):
@@ -87,40 +107,51 @@ def _system_prompt(target_format: str, aspect_ratio: str, style: dict[str, Any] 
 
 
 def _base_fields_message(base_card: dict[str, Any]) -> str:
-    layer = base_card["layer_typography_architecture"]
+    # Normalise to hybrid format without mutating the original.
+    card = json.loads(json.dumps(base_card))
+    _ensure_hybrid_format(card)
+
+    native = card.get("native_typography", {})
+    raster = card.get("raster_background", {})
+
     fixed = {
-        "concept": base_card["concept"],
-        "headline": layer["headline"],
-        "subtext": layer["subtext"],
-        "color_palette": layer["color_palette"],
-        "fonts": layer["fonts"],
-        "negative_prompt": base_card["negative_prompt"],
-        "canva_keywords": base_card.get("canva_keywords", []),
+        "concept": card["concept"],
+        "headline": native.get("headline", ""),
+        "subtext": native.get("subtext", ""),
+        "color_palette": native.get("color_palette", []),
+        "fonts": native.get("fonts", {}),
+        "negative_prompt": raster.get("negative_prompt", ""),
+        "canva_keywords": card.get("canva_keywords", []),
     }
     return f"Approved card's fixed fields (do not change):\n{json.dumps(fixed, ensure_ascii=False, indent=2)}"
 
 
 def _merge_variant(base_card: dict[str, Any], target_format: str, adapted: dict[str, Any]) -> dict[str, Any]:
     card = json.loads(json.dumps(base_card))  # deep copy
+    _ensure_hybrid_format(card)  # normalise to hybrid format
+
     zone = adapted["text_zone"]
     card["aspect_ratio"] = TARGET_FORMATS[target_format]
     card["text_zone"] = zone
-    # The adaptation may have picked a NEW text_zone while leaving the old
-    # zone's spatial wording in the reused prose. Reconcile the negative-space
-    # direction in both the image prompt and the layer description so they
-    # match the new zone before validation runs (fixes the class of
-    # "text_zone is 'bottom' but magic_media_prompt never mentions 'bottom'"
-    # failures deterministically, instead of relying on an LLM retry).
-    card["magic_media_prompt"] = align_zone_language(
-        adapted["magic_media_prompt"],
+
+    mp = adapted.get("magic_media_prompt", "")
+    if isinstance(mp, list):
+        mp = " ".join(str(s) for s in mp)
+    card.setdefault("raster_background", {})
+    card["raster_background"]["magic_media_prompt"] = align_zone_language(
+        mp,
         zone,
         append_clause=(
             f"with deliberate negative space reserved at the {zone} of the frame "
             "for the typography overlay"
         ),
     )
-    card["layer_typography_architecture"]["background_layers"] = align_zone_language(
-        adapted["background_layers"],
+    bg_layers = adapted.get("background_layers", "")
+    if isinstance(bg_layers, list):
+        bg_layers = " ".join(str(s) for s in bg_layers)
+    card.setdefault("native_typography", {})
+    card["native_typography"]["alignment_zone"] = align_zone_language(
+        bg_layers,
         zone,
         append_clause=f"the headline and subtext occupy the reserved {zone} zone",
     )

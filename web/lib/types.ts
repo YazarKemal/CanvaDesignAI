@@ -95,6 +95,7 @@ export interface ChatResponse {
   contrast_ratio: number;
   text_zone: TextZone;
   selected_style_name?: string | null;
+  variants?: Record<string, AdaptVariant>;
 }
 
 // One entry in the terminal log: either a rendered card or an error line.
@@ -109,6 +110,7 @@ export interface LogEntry {
   error?: string;
   sourceFormat?: TargetFormat;
   selectedStyleName?: string | null;
+  variants?: Record<string, AdaptVariant>;
 }
 
 export interface Brand {

@@ -27,7 +27,12 @@ from pydantic import BaseModel, Field
 
 from src.brand_profiles import BrandNotFoundError, list_brands, load_brand
 from src.color_science import best_contrast_pair
-from src.omni_channel import TARGET_FORMATS, UnknownFormatError, generate_omni_channel_set
+from src.omni_channel import (
+    TARGET_FORMATS,
+    UnknownFormatError,
+    detect_format_from_aspect_ratio,
+    generate_omni_channel_set,
+)
 from src.orchestrator import DEFAULT_MAX_ATTEMPTS, run_pipeline
 from src.paste_render import render_for_assistant_paste
 from src.schema import PromptValidationError
@@ -51,6 +56,12 @@ class ChatRequest(BaseModel):
     max_attempts: int = Field(DEFAULT_MAX_ATTEMPTS, ge=1, le=6)
 
 
+class AdaptVariant(BaseModel):
+    card: dict[str, Any]
+    paste_text: str
+    contrast_ratio: float
+
+
 class ChatResponse(BaseModel):
     card: dict[str, Any]
     approved: bool
@@ -60,6 +71,7 @@ class ChatResponse(BaseModel):
     contrast_ratio: float
     text_zone: str
     selected_style_name: str | None = None
+    variants: dict[str, AdaptVariant] | None = None
 
 
 class BrandSummary(BaseModel):
@@ -86,12 +98,6 @@ class AdaptRequest(BaseModel):
     formats: list[str] = Field(..., min_length=1, description=f"Target formats: {sorted(TARGET_FORMATS)}")
     brand: str | None = None
     style: str | None = Field(None, description="Elite style preset slug (config/styles/<slug>.json).")
-
-
-class AdaptVariant(BaseModel):
-    card: dict[str, Any]
-    paste_text: str
-    contrast_ratio: float
 
 
 class AdaptResponse(BaseModel):
@@ -194,6 +200,33 @@ def chat(request: ChatRequest) -> ChatResponse:
         except StyleNotFoundError:
             selected_style_name = style_slug  # fallback: show the slug itself
 
+    # -- Auto-adapt to all 3 target formats (Story, Post, Banner) ---------
+    brand_profile = load_brand(request.brand) if request.brand else None
+    style_preset = load_style(request.style) if request.style else None
+
+    variants: dict[str, AdaptVariant] | None = None
+    primary_format = detect_format_from_aspect_ratio(result.card.get("aspect_ratio", ""))
+    if primary_format:
+        other_formats = [fmt for fmt in TARGET_FORMATS if fmt != primary_format]
+        try:
+            adapted_cards = generate_omni_channel_set(
+                result.card, other_formats,
+                brand=brand_profile, style=style_preset,
+            )
+            variants = {}
+            for fmt, variant_card in adapted_cards.items():
+                v_legacy = variant_card.get("layer_typography_architecture", {})
+                v_native = variant_card.get("native_typography", {})
+                v_palette = v_native.get("color_palette", v_legacy.get("color_palette", []))
+                _, _, v_ratio = best_contrast_pair(v_palette)
+                variants[fmt] = AdaptVariant(
+                    card=variant_card,
+                    paste_text=render_for_assistant_paste(variant_card),
+                    contrast_ratio=round(v_ratio, 1),
+                )
+        except (UnknownFormatError, PromptValidationError):
+            variants = None  # still return the primary card on adaptation failure
+
     return ChatResponse(
         card=result.card,
         approved=result.approved,
@@ -203,6 +236,7 @@ def chat(request: ChatRequest) -> ChatResponse:
         contrast_ratio=round(ratio, 1),
         text_zone=result.card["text_zone"],
         selected_style_name=selected_style_name,
+        variants=variants,
     )
 
 
