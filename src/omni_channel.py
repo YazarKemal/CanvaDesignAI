@@ -53,21 +53,85 @@ BRAND_KIT_ASSETS: dict[str, dict[str, str]] = {
         "aspect_ratio": CANVA_KNOWLEDGE_BASE["dimensions"]["logo"],
         "label": "🪧 Logo & Emblem",
         "concept_override": "logo and emblem mark design",
+        "layout_directive": (
+            "LOGO & EMBLEM LAYOUT RULES (strict):\n"
+            "- NO CTA buttons, NO promotional badges, NO discount labels.\n"
+            "- Layer 2 (vector_elements): a single centered vector emblem/icon "
+            "drawn from the brand's visual identity (coffee cup, leaf, geometric "
+            "monogram). No pill_button, no badge.\n"
+            "- Layer 3 (native_typography): brand name as headline (Poppins Bold "
+            "or the brand's signature headline font), centered below the emblem. "
+            "Subtext: 'Est. 2026' in the brand's body font, small and centered.\n"
+            "- alignment_zone: center of canvas, vertical stack.\n"
+            "- Palette: use ONLY the brand's approved_colors.\n"
+            "- Keep it minimal — this is an identity mark, not a promotional graphic."
+        ),
     },
     "opening_poster": {
         "aspect_ratio": CANVA_KNOWLEDGE_BASE["dimensions"]["poster"],
         "label": "📣 Grand Opening Poster",
         "concept_override": "grand opening event poster",
+        "layout_directive": (
+            "GRAND OPENING POSTER LAYOUT RULES (strict):\n"
+            "- NO 'Order Now' CTA, NO discount badge. This is an editorial event poster.\n"
+            "- Layer 2 (vector_elements): three info blocks arranged in a clean grid:\n"
+            "  1. 'GRAND OPENING' — large, bold, the hero element.\n"
+            "  2. 'Date' block — show a date placeholder like 'SAT / 15.08.26' in "
+            "a clean editorial layout (thin rule lines above/below).\n"
+            "  3. 'Location' block — '123 Brew Lane, Portland' in the brand's body "
+            "font, small and refined.\n"
+            "- Layer 3 (native_typography): headline is the event title; subtext is "
+            "a one-line tagline. alignment_zone: top or center-left.\n"
+            "- Visual style: editorial magazine poster — generous whitespace, "
+            "strong typographic hierarchy, one accent color from the brand palette "
+            "for the date/location blocks."
+        ),
     },
     "menu_list": {
         "aspect_ratio": CANVA_KNOWLEDGE_BASE["dimensions"]["flyer_a4"],
         "label": "📜 Menu & Product List",
         "concept_override": "menu and product listing",
+        "layout_directive": (
+            "MENU & PRODUCT LIST LAYOUT RULES (strict):\n"
+            "- NO CTA button, NO discount badge. This is a product catalogue.\n"
+            "- Layer 2 (vector_elements): subtle divider lines between categories. "
+            "No pill_button, no badge.\n"
+            "- Layer 3 (native_typography): headline is the menu title. "
+            "Subtext is a brief description (e.g. 'Handcrafted daily').\n"
+            "- direct_action_tip steps MUST describe a PRICED MENU LAYOUT:\n"
+            "  1. Category headers: 'ESPRESSO', 'BREWS', 'PASTRIES' in the brand's "
+            "headline font, separated by thin horizontal rule lines.\n"
+            "  2. Under each category, list 3-4 items with prices right-aligned "
+            "(e.g. 'Flat White .................... 4.50' in the brand's body font).\n"
+            "  3. Use dot-leader tabs for price alignment — consistent tab stops.\n"
+            "  4. Palette: use the brand's approved_colors. Prices in the accent color.\n"
+            "- alignment_zone: top for the menu title, then full-width for the list."
+        ),
     },
     "packaging_merch": {
         "aspect_ratio": CANVA_KNOWLEDGE_BASE["dimensions"]["instagram_post"],
         "label": "☕ Packaging & Merch",
         "concept_override": "packaging and merchandise design",
+        "layout_directive": (
+            "PACKAGING & MERCH LAYOUT RULES (strict):\n"
+            "- This is a CUP SLEEVE / LABEL / STICKER print template — minimal, "
+            "repeatable, brand-forward.\n"
+            "- Layer 2 (vector_elements): a REPEATING PATTERN of the brand's emblem "
+            "or a simple geometric motif (circles, lines, dots) in one of the "
+            "brand's approved_colors at low opacity. No CTA, no badge, no button.\n"
+            "- Layer 3 (native_typography): headline is the brand name (centered, "
+            "prominent). Subtext is a short tagline or 'small-batch · handcrafted' "
+            "style descriptor. alignment_zone: center.\n"
+            "- direct_action_tip steps MUST describe a PRINT-READY layout:\n"
+            "  1. Set up a square canvas at 1080x1080 px.\n"
+            "  2. Add the brand emblem/logo centered at the top 30% of the canvas.\n"
+            "  3. Add the brand name in the headline font, centered below the emblem.\n"
+            "  4. Add a repeating background pattern using the brand's secondary "
+            "color at 8-12% opacity — circles, dots, or the brand motif.\n"
+            "  5. Add footer text: brand website or 'est. 2026' in small body font.\n"
+            "- The result should look like a coffee cup sleeve or product label — "
+            "clean, tactile, ready for print."
+        ),
     },
 }
 
@@ -95,7 +159,12 @@ class UnknownFormatError(ValueError):
     pass
 
 
-def _system_prompt(target_format: str, aspect_ratio: str, style: dict[str, Any] | None = None) -> str:
+def _system_prompt(
+    target_format: str,
+    aspect_ratio: str,
+    style: dict[str, Any] | None = None,
+    layout_directive: str | None = None,
+) -> str:
     style_section = ""
     if style is not None:
         required = ", ".join(f"'{k}'" for k in style.get("required_keywords", []))
@@ -104,6 +173,9 @@ def _system_prompt(target_format: str, aspect_ratio: str, style: dict[str, Any] 
             f"signature keywords MUST be preserved verbatim in your rewritten "
             f"magic_media_prompt (do not drop them): {required}.\n"
         )
+    layout_section = ""
+    if layout_directive:
+        layout_section = f"\n\n{layout_directive}\n"
     return (
         "You are the Layout Adaptive Engine inside CaVDesign. You are given an "
         "ALREADY APPROVED Canva card and must adapt it to a new format: "
@@ -111,25 +183,29 @@ def _system_prompt(target_format: str, aspect_ratio: str, style: dict[str, Any] 
         "JSON object and NOTHING else — no greeting, no prose, no markdown "
         "fences, no questions back to the user.\n\n"
         f"{composition_prompt_block(aspect_ratio)}"
+        f"{layout_section}"
         f"{style_section}\n\n"
         "HARD RULES:\n"
         "- concept, headline, subtext, color_palette, fonts, negative_prompt, "
         "and canva_keywords are FIXED — do not change them, do not repeat them "
         "in your reply.\n"
-        "- Output EXACTLY these four keys, nothing else:\n"
+        "- vector_elements MAY be rewritten if a layout_directive is given above "
+        "(the directive may add/remove specific vector shapes).\n"
+        "- Output these keys (omit vector_elements if unchanged):\n"
         "  1. text_zone — one of 'top'/'bottom'/'left'/'right'/'center', "
         "chosen using the FORMAT-SPECIFIC COMPOSITION rules above for what best "
-        "suits THIS aspect ratio (a 9:16 vertical story often wants a different "
-        "zone than a 1:1 square).\n"
+        "suits THIS aspect ratio.\n"
         "  2. magic_media_prompt — rewrite ONLY the composition/framing for "
-        "the new aspect ratio per the composition rules above (leading lines, "
-        "depth, lighting), keeping the same subject, medium, mood, color "
-        "palette, and any elite style keywords. MUST reserve negative space per "
-        "the chosen text_zone and mention that location in plain English, "
-        "matching rule #1.\n"
+        "the new aspect ratio per the composition rules above, keeping the same "
+        "subject, medium, mood, color palette, and any elite style keywords. "
+        "MUST reserve negative space per the chosen text_zone.\n"
         "  3. background_layers — how the image and typography layers stack "
-        "for this format; MUST also mention the same text_zone location.\n"
-        "  4. direct_action_tip — an ordered array of 2-5 concrete Canva steps "
+        "for this format; MUST mention the same text_zone location.\n"
+        "  4. vector_elements (OPTIONAL) — only include if the layout directive "
+        "requires different vector shapes (e.g. remove CTA/badge, add info "
+        "blocks, add repeating pattern). Each key maps to a single concrete "
+        "Canva shape instruction string.\n"
+        "  5. direct_action_tip — an ordered array of 2-5 concrete Canva steps "
         "for assembling THIS format specifically (mentioning the aspect ratio).\n\n"
         'Respond with raw JSON only, e.g.: {"text_zone": "top", '
         '"magic_media_prompt": "...", "background_layers": "...", '
@@ -187,6 +263,9 @@ def _merge_variant(base_card: dict[str, Any], target_format: str, adapted: dict[
         append_clause=f"the headline and subtext occupy the reserved {zone} zone",
     )
     card["direct_action_tip"] = adapted["direct_action_tip"]
+    # Override vector_elements if the adaptation provides new ones.
+    if "vector_elements" in adapted and isinstance(adapted["vector_elements"], dict):
+        card["vector_elements"] = adapted["vector_elements"]
     return card
 
 
@@ -226,6 +305,9 @@ def adapt_to_format(
     client = client or _default_client()
     aspect_ratio = TARGET_FORMATS[target_format]
 
+    # Inject brand-kit layout directive if this is a brand kit asset.
+    kit_directive = BRAND_KIT_ASSETS.get(target_format, {}).get("layout_directive")
+
     user_message = _base_fields_message(base_card)
     feedback: str | None = None
     last_error: PromptValidationError | None = None
@@ -238,7 +320,9 @@ def adapt_to_format(
         response = client.chat.completions.create(
             model=model,
             messages=[
-                {"role": "system", "content": _system_prompt(target_format, aspect_ratio, style)},
+                {"role": "system", "content": _system_prompt(
+                    target_format, aspect_ratio, style, layout_directive=kit_directive,
+                )},
                 {"role": "user", "content": message},
             ],
             temperature=0.3,
