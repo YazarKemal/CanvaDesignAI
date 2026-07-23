@@ -3,18 +3,18 @@
 Mirrors src/brand_profiles.py's loader pattern, but style presets are
 orthogonal to brands: a brand locks a design's fonts/colors, while a style
 preset injects a fixed block of elite photographic/textural keywords into
-`magic_media_prompt` (inspired by top-tier Canva creators). Both can be
+the background composition (Canva Stock Library search query). Both can be
 active at once — a brand constrains typography/palette, a style steers the
-image's look and feel.
+design's overall look and feel using native Canva elements.
 
 Each preset carries:
 - `magic_media_keywords`: the exact keyword block the Generator must weave
-  into magic_media_prompt.
+  into the background search query.
 - `required_keywords`: the distinctive substrings src/schema.py enforces at
   the code level (retried if missing), so the style is guaranteed to land in
-  the image prompt rather than being silently paraphrased away.
-- `recommended_magic_media_style` / `palette_hint`: soft steering for the
-  Architect/Generator.
+  the background description rather than being silently paraphrased away.
+- `recommended_layout_style` / `palette_hint`: soft steering for the
+  Architect/Generator toward native Canva layout styles.
 """
 
 from __future__ import annotations
@@ -49,7 +49,7 @@ def list_styles(*, styles_dir: Path | str = STYLES_DIR) -> list[str]:
 
 
 def required_keywords(style: dict[str, Any]) -> list[str]:
-    """The distinctive substrings that MUST appear in magic_media_prompt."""
+    """The distinctive substrings that MUST appear in the background description."""
     return list(style.get("required_keywords", []))
 
 
@@ -78,19 +78,20 @@ def best_for_summaries(*, styles_dir: Path | str = STYLES_DIR) -> str:
 def as_prompt_block(
     style: dict[str, Any], *, override_brand: bool = False
 ) -> str:
-    """Render a style preset as a mandatory image-prompt directive.
+    """Render a style preset as a mandatory background/topography directive.
 
     When *override_brand* is True (a Brand Profile is also active), the block
     includes a strict hierarchy directive: the Style Preset's visual
     architecture REPLACES the Brand Profile's default visual identity (mood,
     lighting, textures, photographic style). The Brand Profile only contributes
     Color Palette, Typography, and Logo placement to the *typography layer* —
-    it does NOT steer the generated image's look.
+    it does NOT steer the background composition.
     """
     lines = [
-        f"ELITE STYLE PRESET — '{style['name']}' (mandatory image direction). The "
-        "magic_media_prompt MUST weave in these exact photographic and textural "
-        "keywords, verbatim, so the generated image lands this look:",
+        f"ELITE STYLE PRESET — '{style['name']}' (mandatory background direction). The "
+        "raster_background.magic_media_prompt (Canva Stock Library search query) MUST "
+        "weave in these exact photographic and textural keywords, verbatim, so the "
+        "stock photo search results land this look:",
         f"  {style['magic_media_keywords']}",
     ]
     if override_brand:
@@ -98,18 +99,19 @@ def as_prompt_block(
             "\nSTYLE OVERRIDE RULE (token hierarchy — strict): This Style Preset's "
             "visual architecture REPLACES and OVERRIDES the Brand Profile's default "
             "visual identity (mood, lighting warmth, material/texture cues, "
-            "photographic/illustrative register). The Brand Profile ONLY contributes "
+            "photographic register). The Brand Profile ONLY contributes "
             "its Color Palette, Typography (headline_font / body_font), and Logo "
-            "placement rules to the typography layer — it does NOT contribute any "
-            "visual mood or photographic direction to magic_media_prompt. The style "
-            "preset wins on all image-aesthetic decisions. Do NOT describe the "
+            "placement rules to the native typography layer — it does NOT contribute "
+            "any visual mood or photographic direction to the background description. "
+            "The style preset wins on all aesthetic decisions. Do NOT describe the "
             "brand's default visual mood anywhere in magic_media_prompt — use ONLY "
             "the style preset's visual architecture."
         )
-    if style.get("recommended_magic_media_style"):
+    layout_style = style.get("recommended_layout_style") or style.get("recommended_magic_media_style")
+    if layout_style:
         lines.append(
-            f"- Set layer_typography_architecture.magic_media_style to "
-            f"'{style['recommended_magic_media_style']}'."
+            f"- Set raster_background.layout_style to "
+            f"'{layout_style}'."
         )
     if style.get("palette_hint"):
         lines.append(
@@ -121,17 +123,16 @@ def as_prompt_block(
             f"- Append these exclusions to negative_prompt verbatim (this preset's "
             f"known failure mode): {style['negative_prompt_boost']}."
         )
-    # -- Graphic composition layer directives ---------------------------------
+    # -- Native vector element directives -------------------------------------
     gc = style.get("graphic_composition")
     if gc:
         lines.append(
-            "\nGRAPHIC COMPOSITION LAYERS (mandatory — this style requires four "
-            "additional decorative layers in layer_typography_architecture."
-            "graphic_layers as separate Canva shape/text elements on top of the "
-            "generated image. Each layer is a concrete, placeable instruction "
-            "the paste_render will quote verbatim to the receiving assistant. "
+            "\nNATIVE VECTOR ELEMENTS (mandatory — this style requires built-in "
+            "Canva vector shapes placed as separate Elements-tab objects on top of "
+            "the background. Each entry is a concrete, placeable instruction "
+            "the paste_render will quote verbatim. "
             "Follow the style-specific specs below exactly — sizes, colours, "
-            "alignment, and edge treatment are NOT suggestions.):"
+            "border-radii, and positioning are NOT suggestions.):"
         )
         if gc.get("person_cutout"):
             lines.append(f"  person_cutout: {gc['person_cutout']}")
