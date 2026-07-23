@@ -18,13 +18,16 @@ OpenAI-format call into Anthropic's native Messages API. Set
 ANTHROPIC_API_KEY and optionally ANTHROPIC_MODEL (defaults to
 claude-3-5-sonnet-20241022) / ANTHROPIC_BASE_URL.
 
-This is also the "Critic" of the design-agency architecture — rather than
-adding a separate fourth LLM stage, the existing rubric gained a
-`brand_fit` criterion (design_rules.json) that this same call scores when
-a brand profile is active. Factual brand compliance (exact font/color
-match) is enforced deterministically in src/schema.py; only the
-genuinely subjective judgment (does it *feel* on-brand) is left to the
-LLM, in the call that already runs on every attempt.
+This is also the "Critic" of the design-agency architecture — the rubric
+criteria in design_rules.json evaluate cards against the Canva Native
+Layout Engine paradigm: stock photo backgrounds, native gradients, Canva
+built-in typography in vertical stacks, and native vector shapes (pill
+buttons, badges, frames). AI image generation is penalized.
+
+Factual compliance (exact font/color match for brands, contrast ratio,
+text_zone consistency) is enforced deterministically in src/schema.py;
+only genuinely subjective judgment (does it *feel* on-brand, is the
+composition visually coherent) is left to the LLM.
 """
 
 from __future__ import annotations
@@ -78,11 +81,20 @@ def _system_prompt(
     return (
         "You are the Reviewer agent inside CaVDesign — a strict but fair Canva "
         "automation QA reviewer (the Critic of this design agency). You are "
-        "given the Canva Automation Constitution and a Canva card (JSON). "
+        "given the Canva Automation Constitution and a Canva card (JSON) "
+        "designed for the Canva Native Layout Engine. "
         "Score the card against this rubric, on a 0-10 scale per criterion:\n"
         f"{criteria_desc}\n\n"
         f"{as_prompt_block(load_constitution())}"
         f"{brand_section}\n\n"
+        "IMPORTANT: This card is built for Canva Native Layout Engine — "
+        "backgrounds are Canva Stock Library search queries or native gradients "
+        "(NOT AI-generated images), typography uses Canva built-in font boxes "
+        "in vertical stacks, and graphic elements are native Canva vector "
+        "shapes. Score AI image generation terms (Magic Media, DALL-E, "
+        "Midjourney) as a defect under canva_fit and background_composition_"
+        "quality. If target_tool is NOT 'Canva Native Layout Engine', score "
+        "canva_fit at 0.\n\n"
         "Compute the weighted average as the overall `score` (0-10). A card "
         f"passes if score >= {pass_threshold}. If the card contains ANY "
         "conversational/chat language (greetings, questions back to the user, "

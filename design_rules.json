@@ -2,14 +2,15 @@
   "$schema": "https://canvadesignai.dev/schemas/art-director-constitution-v2.json",
   "name": "CaVDesign Canva Automation Constitution",
   "version": "3.2.0",
-  "description": "Canonical rules for a Canva-only automation engine. Every stage (Architect, Generator, Reviewer) runs on DeepSeek and must return a single machine-consumable Canva card — never chat, never a question, never prose outside the card's fields. This project outputs cards ONLY: it never generates images and never touches Canva or any external tool on the user's behalf.",
+  "description": "Canonical rules for a Canva-only automation engine. Every stage (Architect, Generator, Reviewer) runs on DeepSeek and must return a single machine-consumable Canva card — never chat, never a question, never prose outside the card's fields. This project outputs cards ONLY: it never generates images and never touches Canva or any external tool on the user's behalf. All AI image generation (Magic Media, DALL-E, Midjourney) has been retired in favour of the Canva Native Layout Engine: Stock Library photos, native gradients, built-in typography font boxes, and native vector shapes.",
 
   "output_contract": {
     "rule": "The ONLY valid response is one JSON object matching the card schema. No greeting, no explanation, no meta-commentary, no questions back to the user, no markdown outside the JSON. If the request is ambiguous, make the most Canva-sensible assumption and proceed — never ask for clarification.",
     "mandatory_components": [
-      "magic_media_prompt — a single English prompt, paste-ready for Canva Magic Media / DALL-E 3.",
-      "layer_typography_architecture — headline, subtext, HEX color_palette, headline/body font pairing, and background layer distribution.",
-      "direct_action_tip — an ordered array of 3-5 steps: first entry is the PRIMARY holistic AI-assistant instruction (a unified block listing all design parameters inline for single-pass generation), remaining entries are the ALTERNATIVE manual Magic Media path."
+      "raster_background — a Canva Stock Library search query or native CSS gradient definition (NO AI-generated imagery).",
+      "native_typography — headline, subtext, HEX color_palette, Canva built-in font pairing (Poppins, Montserrat, etc.), and vertical-stack alignment_zone.",
+      "vector_elements — native Canva vector shapes (pill buttons, badges, frames, accents) with pixel-precise positioning.",
+      "direct_action_tip — an ordered array of 2-5 steps: first entry is the PRIMARY Canva Native Layout Engine instruction (a unified block listing all design parameters inline for single-pass execution), remaining entries are ALTERNATIVE manual Canva UI steps using Stock Library / Elements / Text tabs."
     ],
     "forbidden_chat_phrases": [
       "i can generate", "i can create", "would you like", "do you want", "let me know",
@@ -25,14 +26,14 @@
   },
 
   "magic_media_prompt": {
-    "rule": "Compose magic_media_prompt as a single flowing sentence (or two), ordered: [subject & action] -> [medium/format] -> [composition & framing] -> [lighting] -> [color & mood] -> [technical/camera details] -> [quality tags]. Front-load the subject; diffusion models weight earlier tokens more heavily.",
-    "length_guideline": "Aim for 40-80 words: specific enough to be unambiguous, short enough to avoid diluting token weight.",
-    "specificity": "Replace every generic noun/adjective with a concrete, visual one (not 'a nice coffee' but 'a flat-white with rosetta latte art in a matte-black ceramic cup'). No abstract concepts the model cannot render (avoid 'success', 'innovation', 'luxury feeling' — show them instead)."
+    "rule": "Compose magic_media_prompt as a Canva Stock Library search query OR a native gradient definition. For stock: describe [subject & setting] -> [composition & framing] -> [lighting] -> [color & mood] -> [quality descriptors]. For gradient: specify angle and 3-5 HEX stop colours that complement the typography palette. NEVER describe AI generation parameters — this field searches Canva's built-in stock library or defines a CSS gradient, it does NOT generate images. Front-load the most specific search terms first.",
+    "length_guideline": "Aim for 40-80 words for stock queries: specific enough to return good Canva Stock Library results, short enough to avoid diluting the search.",
+    "specificity": "Replace every generic noun/adjective with a concrete, visual one (not 'a nice coffee' but 'a flat-white with rosetta latte art in a matte-black ceramic cup'). Use terms that match real stock photography categories."
   },
 
   "medium": {
-    "options": ["photography", "3d_render", "illustration", "watercolor", "flat_vector", "oil_painting", "cinematic_still", "product_shot"],
-    "rule": "Always name an explicit medium. For realism default to 'photography' or 'product_shot'; for brand graphics consider 'flat_vector' or '3d_render'. Never leave the medium implicit.",
+    "options": ["stock_photography", "gradient", "solid_color", "illustration", "flat_vector", "editorial_photo"],
+    "rule": "Always name an explicit background type. Default to 'stock_photography' with Canva Stock Library search keywords; use 'gradient' or 'solid_color' when a clean minimal background is preferred. Never describe AI-generated imagery.",
     "photography_terms": {
       "cameras_lenses": ["shot on 85mm f/1.4 (portrait, creamy bokeh)", "35mm f/2 (environmental context)", "macro 100mm (fine detail)", "24mm wide (dramatic space)"],
       "film_stocks": ["Kodak Portra 400 (warm skin tones)", "Fujifilm Velvia (saturated landscapes)", "Ilford HP5 (classic B&W grain)"],
@@ -44,7 +45,7 @@
     "rules": [
       "Name an explicit composition technique: rule of thirds, centered symmetry, leading lines, golden ratio, frame-within-a-frame, or negative-space-dominant.",
       "State the camera angle: eye-level, low-angle (heroic), high-angle (diminutive), overhead/flat-lay, or dutch tilt.",
-      "text_zone (top/bottom/left/right/center) is the ONE canonical decision for where the typography layer lives — set it once in the Architect's brief and reference it verbatim in both magic_media_prompt's negative-space description and layer_typography_architecture.background_layers. Never let the two independently guess a location; that's how the image and the text layer end up disagreeing about where the headline goes. Enforced at the code level in src/schema.py.",
+      "text_zone (top/bottom/left/right/center) is the ONE canonical decision for where the native typography layer lives — set it once in the Architect's brief and reference it verbatim in both raster_background.magic_media_prompt's negative-space description and native_typography.alignment_zone. Never let the two independently guess a location; that's how the background and the text layer end up disagreeing about where the headline goes. Enforced at the code level in src/schema.py.",
       "Specify subject placement and scale ('subject on the left third, small in frame' vs 'tight crop filling the frame')."
     ],
     "visual_weight_balance": "The generated subject and the text_zone should not compete for the same visual weight — if the subject is large/centered, text_zone should be an edge (top/bottom/left/right); reserve text_zone 'center' only when the subject is deliberately small, cropped, or absent from that area. This is a Reviewer judgment call (concept_fidelity/canva_fit), not a hard-coded check."
@@ -65,7 +66,7 @@
       { "pair": ["saturated warm red", "vivid saturated green"], "reason": "Optical vibration; clashes and reads as amateur. Use a muted or desaturated variant of one side if both hues are required." },
       { "pair": ["saturated magenta", "saturated cyan"], "reason": "Both high-chroma mid-luminance colors fight for attention." }
     ],
-    "rule": "layer_typography_architecture.color_palette MUST be 3-5 real HEX codes (e.g. '#4A2E1B') consistent with the mood described in magic_media_prompt — never named colors, always HEX.",
+    "rule": "native_typography.color_palette MUST be 3-5 real HEX codes (e.g. '#4A2E1B') consistent with the mood described in raster_background — never named colors, always HEX.",
     "min_contrast_ratio": 4.5,
     "contrast_rule": "The palette MUST include at least one pair of colors with a WCAG contrast ratio >= 4.5:1 (AA for normal-size text) — this simulates headline text drawn in one palette color over another. Include one near-black or near-white anchor alongside the mood colors so this is always achievable. Enforced at the code level in src/schema.py/src/color_science.py, not just described here — a palette below 4.5:1 is rejected and regenerated."
   },
@@ -93,7 +94,7 @@
   },
 
   "aesthetic_taxonomy": {
-    "rule": "ELIMINATE generic descriptors. Every subject, material and mood word in magic_media_prompt must be upgraded to precise, professional design taxonomy — concrete materials, named light qualities, and a specific photographic/illustrative register — so Canva's Magic Media / Flux / SDXL engines have unambiguous, high-signal tokens to render. Vague adjectives ('nice', 'cozy', 'modern', 'beautiful', 'cool') are forbidden as the whole descriptor; each must be replaced by what actually produces that impression on camera.",
+    "rule": "ELIMINATE generic descriptors. Every subject, material and mood word in magic_media_prompt (the Canva Stock Library search query) must be upgraded to precise, professional design taxonomy — concrete materials, named light qualities, and a specific photographic register — so Canva's Stock Library search returns high-quality, on-target results. Vague adjectives ('nice', 'cozy', 'modern', 'beautiful', 'cool') are forbidden as the whole descriptor; each must be replaced by what actually produces that impression in a stock photograph.",
     "upgrade_examples": [
       { "generic": "cozy coffee shop", "upgraded": "minimalist Scandinavian aesthetic, warm oak wood textures, soft natural morning window light, high-end editorial photography, matte porcelain details" },
       { "generic": "modern office", "upgraded": "clean corporate interior, brushed matte-aluminium and warm walnut surfaces, floor-to-ceiling diffused daylight, wide-angle architectural photography, muted desaturated palette" },
@@ -103,13 +104,13 @@
     "material_texture_lexicon": ["matte porcelain", "warm oak wood grain", "brushed brass", "hand-thrown ceramic", "raw linen weave", "polished concrete", "aged terracotta", "frosted glass", "soft velvet nap", "brushed aluminium"],
     "light_quality_lexicon": ["soft natural morning window light", "golden-hour rim light", "diffused overcast light", "hard directional midday sun", "warm practical tungsten glow", "cool blue-hour ambient", "studio softbox key with gentle fill"],
     "register_lexicon": ["high-end editorial photography", "product hero shot", "architectural wide-angle", "macro detail study", "flat-lay overhead", "cinematic still", "clean flat-vector illustration", "isometric 3d render"],
-    "enforcement": "Reviewer judges this under magic_media_prompt_quality — a prompt still leaning on bare generic adjectives instead of this taxonomy is scored down and regenerated."
+    "enforcement": "Reviewer judges this under background_composition_quality — a stock search query still leaning on bare generic adjectives instead of this taxonomy is scored down and regenerated."
   },
 
   "negative_prompt": {
-    "rule": "Always provide a negative_prompt listing what to exclude. Baseline exclusions for any image meant as a clean design base:",
-    "baseline": ["text", "watermark", "signature", "logo", "extra fingers", "deformed hands", "distorted faces", "low resolution", "jpeg artifacts", "cluttered background", "harsh oversaturation"],
-    "note": "Diffusion models render embedded text poorly; excluding 'text' keeps the base clean so the headline/subtext can be added as real, crisp Canva typography layers."
+    "rule": "Always provide a negative_prompt listing what to exclude. Baseline exclusions for any Canva background:",
+    "baseline": ["AI-generated imagery", "text", "watermark", "signature", "logo", "low resolution", "cluttered background", "harsh oversaturation"],
+    "note": "The background must be a real Canva Stock Library photo or a native gradient — never AI-generated. The headline/subtext should be added as real, crisp Canva typography text boxes."
   },
 
   "aspect_ratio": {
@@ -117,27 +118,27 @@
   },
 
   "target_tools": {
-    "supported": ["Canva Magic Media", "Canva GPT", "DALL-E 3", "Midjourney"],
-    "rule": "magic_media_prompt must be tool-agnostic natural language that works in Canva Magic Media and DALL-E 3. Do NOT emit Midjourney-only flags (e.g. --ar, --v, ::) inside it; express aspect ratio in the dedicated aspect_ratio field instead."
+    "supported": ["Canva Native Layout Engine", "Canva Magic Media", "Canva GPT", "DALL-E 3", "Midjourney"],
+    "rule": "target_tool MUST be 'Canva Native Layout Engine' — the card describes a layout built from Canva Stock Library photos, native gradients, built-in typography boxes, and native vector shapes. Do NOT target AI image generators. aspect_ratio lives in its dedicated field."
   },
 
   "direct_action_tip": {
-    "rule": "direct_action_tip is an ordered array of 3-5 steps. The FIRST entry MUST be a unified holistic-design instruction: a single block that can be fed to a Canva-connected AI assistant (Claude or ChatGPT) so it generates the complete visual+typography+palette+font composition in ONE pass — this is the PRIMARY path and MUST list the actual magic_media_prompt, headline, subtext, color_palette, fonts, aspect_ratio, and background_layers values inline. The REMAINING entries (steps 2-5) are the ALTERNATIVE manual Magic Media path: concrete, literally-clickable Canva UI actions for users who prefer step-by-step assembly. No generic advice ('be creative'). Every step must be actionable.",
-    "primary_format": "Step 1 label MUST be 'PRIMARY (AI-Assistant Holistic Generation):' conveying that this design is meant to be generated holistically by a Canva-connected AI assistant — the assistant receives the magic_media_prompt as visual direction, the headline/subtext as the typography layer, the color_palette as the scheme, the fonts as the pairing, the aspect_ratio for the format, and background_layers for the composition, all in one pass with no manual assembly.",
-    "alternative_format": "Steps 2-5 begin with 'ALTERNATIVE (Manual Magic Media):' then list the step-by-step Canva UI actions: open Magic Media, paste the prompt, generate, then add Heading/Subheading text boxes, apply the font pairing, and recolor using the palette HEX codes."
+    "rule": "direct_action_tip is an ordered array of 2-5 steps. The FIRST entry MUST be a unified Canva Native Layout Engine instruction: a single block that lists all stock photo search queries, native shapes, and typography values inline for holistic one-pass execution — this is the PRIMARY path. The REMAINING entries are ALTERNATIVE manual steps using concrete Canva UI: Stock Library search, Elements tab shapes, Text tab fonts. No generic advice ('be creative'). Every step must be literally clickable in Canva.",
+    "primary_format": "Step 1 label MUST be 'PRIMARY (Canva Native Layout Engine):' — the instruction walks through (1) Canva Stock Library search for the background, (2) adding native shapes from the Elements tab, and (3) typing headline/subtext into Canva Text boxes with exact font/pt/color values. All in one unified pass with no manual assembly needed beyond following the steps.",
+    "alternative_format": "ALTERNATIVE steps detail manual Canva UI actions: open Canva → Create Design → Stock Library tab to search background → Elements tab for pill buttons/badges/frames → Text tab for headline/subtext with the specified fonts and HEX colors."
   },
 
   "review_rubric": {
     "criteria": [
       { "id": "concept_fidelity", "weight": 0.12, "question": "Does the card faithfully and vividly capture the user's original concept?" },
-      { "id": "magic_media_prompt_quality", "weight": 0.18, "question": "Is magic_media_prompt concrete, renderable, and correctly ordered (subject->medium->composition->lighting->color->camera->quality), does it use precise aesthetic_taxonomy (concrete materials, named light qualities, a specific register) instead of generic adjectives, and is its composition/negative space tuned to the specific aspect ratio?" },
-      { "id": "layer_typography_architecture_quality", "weight": 0.18, "question": "Are headline/subtext sharp and short, is color_palette valid coherent HEX with a real contrast anchor, and is the font pairing + size hierarchy + background layer distribution sound?" },
-      { "id": "direct_action_tip_quality", "weight": 0.13, "question": "Are the action steps concrete, ordered, and literally clickable in Canva (not generic advice)?" },
-      { "id": "canva_fit", "weight": 0.14, "question": "Does the prompt use Canva-friendly library keywords, reserve deliberate negative space exactly at text_zone, and does the subject's visual weight avoid competing with the text_zone?" },
-      { "id": "format_discipline", "weight": 0.15, "question": "Is the output 100% free of chat/question language, greetings, or meta-commentary — pure Canva automation data?" },
-      { "id": "brand_fit", "weight": 0.1, "question": "If a brand profile is active: does the design feel authentically on-brand (voice, mood, and the exact fonts/colors) beyond the bare minimum compliance? Score 10 if no brand profile is active — never penalize brand-less requests." }
+      { "id": "background_composition_quality", "weight": 0.18, "question": "Is magic_media_prompt a concrete, searchable Canva Stock Library query or a well-defined native gradient? Does it use precise aesthetic_taxonomy (concrete materials, named light qualities, a specific photographic register) instead of generic adjectives? Is negative space tuned to the text_zone? Are AI image generation terms absent?" },
+      { "id": "native_typography_quality", "weight": 0.18, "question": "Are headline/subtext sharp and short, is color_palette valid coherent HEX with a real contrast anchor, are fonts drawn from Canva's built-in library (Poppins Bold, Montserrat, Inter, etc.) in a vertical stack, and is alignment_zone consistent with text_zone?" },
+      { "id": "vector_elements_quality", "weight": 0.10, "question": "Are native Canva vector shapes (pill buttons, badges, frames, accents) concretely described with exact colours, sizes, border-radii, and pixel positions? Are they Canva's built-in shapes, not AI-generated?" },
+      { "id": "direct_action_tip_quality", "weight": 0.13, "question": "Are the action steps concrete, ordered, and literally clickable in Canva using Stock Library / Elements / Text tabs (not AI generation tools, not generic advice)?" },
+      { "id": "canva_fit", "weight": 0.14, "question": "Does the card use Canva Stock Library keywords and native element terminology? Does it reserve deliberate negative space exactly at text_zone? Does the background subject avoid competing with the typography layer?" },
+      { "id": "format_discipline", "weight": 0.15, "question": "Is the output 100% free of chat/question language, greetings, or meta-commentary — pure Canva automation data? Is target_tool 'Canva Native Layout Engine' (not Magic Media or any AI generator)?" }
     ],
     "pass_threshold": 8.5,
-    "scale": "0-10 per criterion, weighted average determines final score. Any detected forbidden_chat_phrase caps format_discipline at 0 regardless of other scoring."
+    "scale": "0-10 per criterion, weighted average determines final score. Any detected forbidden_chat_phrase caps format_discipline at 0 regardless of other scoring. brand_fit is omitted — native layout constraints are enforced deterministically in src/schema.py."
   }
 }
