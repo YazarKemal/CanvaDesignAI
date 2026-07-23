@@ -6,12 +6,19 @@ into the final Canva card. This is the orchestrator's first step: detect
 the design category/dimensions and lock the art direction + negative
 constraints before any prompt text is written. Never chats, never asks a
 question back — makes the most Canva-sensible assumption and proceeds.
+
+When `style` is None or "none", the **Auto Style Injector** scans the
+user's prompt for keywords (planner, nightclub, cafe, retro, …) and
+resolves the best-matching style preset automatically, so that even
+unstyled requests get a coherent visual identity without the user having
+to browse the preset menu.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import re
 from typing import Any
 
 try:
@@ -22,10 +29,107 @@ except ImportError:
 from src.brand_profiles import as_prompt_block as brand_prompt_block
 from src.canva_rules import CANVA_KNOWLEDGE_BASE, detect_category, dimensions_for
 from src.llm_json import extract_json
-from src.style_presets import as_prompt_block as style_prompt_block, best_for_summaries
+from src.style_presets import (
+    StyleNotFoundError,
+    as_prompt_block as style_prompt_block,
+    best_for_summaries,
+    load_style,
+)
 
 DEFAULT_MODEL = "deepseek-chat"
 DEFAULT_BASE_URL = "https://api.deepseek.com"
+
+# -- Auto Style Injector -------------------------------------------------------
+# Maps free-text keywords (lowercased) to style-preset slugs.  The keyword
+# is matched case-insensitively against the user's prompt; first hit wins.
+# Only consulted when no manual style override is provided.
+
+AUTO_STYLE_HINTS: dict[str, str] = {
+    "planner": "utility-planner-ornamental",
+    "ajanda": "utility-planner-ornamental",
+    "planlayıcı": "utility-planner-ornamental",
+    "nightclub": "vaporwave-arcade-dusk",
+    "gece kulübü": "vaporwave-arcade-dusk",
+    "arcade": "vaporwave-arcade-dusk",
+    "cafe": "warm-editorial-minimalist",
+    "coffee": "warm-editorial-minimalist",
+    "kahve": "warm-editorial-minimalist",
+    "pastane": "warm-editorial-minimalist",
+    "editorial": "warm-editorial-minimalist",
+    "retro": "y2k-chrome-gloss",
+    "y2k": "y2k-chrome-gloss",
+    "hyperpop": "y2k-chrome-gloss",
+    "concert": "psychedelic-fillmore",
+    "konser": "psychedelic-fillmore",
+    "müzik": "psychedelic-fillmore",
+    "indie": "psychedelic-fillmore",
+    "rock": "psychedelic-fillmore",
+    "streetwear": "neo-grunge-streetwear",
+    "sokak modası": "neo-grunge-streetwear",
+    "hip hop": "neo-grunge-streetwear",
+    "grunge": "neo-grunge-streetwear",
+    "corporate": "corporate-dynamic-vector",
+    "kurumsal": "corporate-dynamic-vector",
+    "saas": "corporate-dynamic-vector",
+    "tech": "corporate-dynamic-vector",
+    "startup": "corporate-dynamic-vector",
+    "wedding": "art-nouveau-botanical",
+    "düğün": "art-nouveau-botanical",
+    "nikah": "formal-ceremonial-turkish",
+    "davet": "art-nouveau-botanical",
+    "invitation": "art-nouveau-botanical",
+    "davetiye": "art-nouveau-botanical",
+    "luxury": "art-deco-metropolis",
+    "lüks": "art-deco-metropolis",
+    "fashion": "swiss-international-grid",
+    "moda": "swiss-international-grid",
+    "minimal": "swiss-international-grid",
+    "minimalist": "swiss-international-grid",
+    "poster": "bauhaus-modernist-poster",
+    "afiş": "bauhaus-modernist-poster",
+    "flyer": "riso-print-editorial",
+    "broşür": "riso-print-editorial",
+    "brosur": "riso-print-editorial",
+    "menu": "memphis-design-pop",
+    "menü": "memphis-design-pop",
+    "restaurant": "memphis-design-pop",
+    "travel": "kodachrome-americana",
+    "seyahat": "kodachrome-americana",
+    "vintage": "kodachrome-americana",
+    "gaming": "streamer-energetic-glitch",
+    "oyun": "streamer-energetic-glitch",
+    "streamer": "streamer-energetic-glitch",
+    "yayın": "streamer-energetic-glitch",
+    "architecture": "brutalist-concrete",
+    "mimari": "brutalist-concrete",
+    "mobilya": "mid-century-modern-print",
+    "furniture": "mid-century-modern-print",
+    "japon": "ukiyo-e-woodblock",
+    "matcha": "ukiyo-e-woodblock",
+    "çay": "ukiyo-e-woodblock",
+    "tören": "formal-ceremonial-turkish",
+    "resmi": "formal-ceremonial-turkish",
+    "ceremonial": "formal-ceremonial-turkish",
+}
+
+
+def auto_detect_style(text: str) -> dict[str, Any] | None:
+    """Scan *text* for keywords that suggest a specific style preset.
+
+    Returns the loaded style dict on the first keyword hit, or ``None``
+    when nothing matches.  The lookup is fast (no LLM call) and runs
+    before the Architect LLM is invoked, so the detected style can be
+    threaded into the brief-generation prompt alongside the category hint.
+    """
+    lowered = text.lower()
+    for keyword, slug in AUTO_STYLE_HINTS.items():
+        if keyword in lowered:
+            try:
+                return load_style(slug)
+            except StyleNotFoundError:
+                continue
+    return None
+
 
 BRIEF_SCHEMA_HINT = {
     "detected_category": "instagram_post",
@@ -160,7 +264,19 @@ def build_brief(
     If `brand` is given, the brief's color_palette and text_zone are
     constrained by that brand profile. If `style` is given, its elite style
     preset steers the brief's art_direction (mood/lighting/palette/style).
+
+    When *style* is ``None``, the **Auto Style Injector** scans the user
+    message for keywords and picks the best-matching preset before the
+    Architect LLM runs — so even unstyled requests get a coherent visual
+    identity.
     """
+    # -- Auto Style Injector: keyword-based style detection -----------------
+    auto_style: dict[str, Any] | None = style
+    if auto_style is None:
+        detected = auto_detect_style(user_message)
+        if detected is not None:
+            auto_style = detected
+
     if client is None:
         if OpenAI is not None:
             client = OpenAI(
@@ -182,7 +298,7 @@ def build_brief(
     response = client.chat.completions.create(
         model=model,
         messages=[
-            {"role": "system", "content": _system_prompt(brand, style)},
+            {"role": "system", "content": _system_prompt(brand, auto_style)},
             {"role": "user", "content": f"User request: {user_message}{hint_text}"},
         ],
         temperature=0.2,
@@ -190,6 +306,13 @@ def build_brief(
     raw_text = response.choices[0].message.content or ""
 
     try:
-        return extract_json(raw_text)
+        brief = extract_json(raw_text)
     except json.JSONDecodeError as exc:
         raise ValueError(f"Architect did not return valid JSON: {exc}\nRaw: {raw_text}") from exc
+
+    # Stamp the auto-detected style slug so downstream stages know which
+    # preset was resolved (even when the user didn't explicitly pick one).
+    if style is None and auto_style is not None:
+        brief.setdefault("selected_style_id", auto_style["slug"])
+
+    return brief

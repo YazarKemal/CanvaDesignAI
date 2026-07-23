@@ -28,7 +28,7 @@ from src.composition_rules import as_prompt_block as composition_prompt_block
 from src.constitution import as_prompt_block, load_constitution
 from src.golden_cards import as_few_shot_block
 from src.llm_json import extract_json
-from src.schema import PromptValidationError, validate_prompt
+from src.schema import PromptValidationError, _ensure_hybrid_format, validate_prompt
 from src.style_presets import as_prompt_block as style_prompt_block
 
 DEFAULT_MODEL = "deepseek-chat"
@@ -36,42 +36,64 @@ DEFAULT_BASE_URL = "https://api.deepseek.com"
 
 OUTPUT_FORMAT_EXAMPLE = {
     "concept": "Grand Opening Cafe",
-    "magic_media_prompt": (
-        "A minimalist 3d flat vector illustration for a specialty coffee shop grand "
-        "opening, earthy terracotta and warm cream color palette, top-down view of an "
-        "espresso cup next to an open notebook, ample negative space at the top for "
-        "overlaying text in Canva, vintage aesthetic, clean lines, isolated on a plain "
-        "background."
-    ),
-    "negative_prompt": (
-        "embedded text, watermark, logo, cluttered composition, extra fingers, "
-        "low resolution, jpeg artifacts, harsh oversaturation"
-    ),
     "aspect_ratio": "1:1 (1080x1080)",
     "target_tool": "Canva Magic Media",
     "text_zone": "top",
-    "layer_typography_architecture": {
+    "canva_keywords": ["flat vector illustration", "isolated element on transparent background"],
+    # -- Layer 1: Raster Background (image only — strict no-text rule) -----
+    "raster_background": {
+        "magic_media_prompt": (
+            "A minimalist 3d flat vector illustration for a specialty coffee shop grand "
+            "opening, earthy terracotta and warm cream color palette, top-down view of an "
+            "espresso cup next to an open notebook, ample negative space at the top for "
+            "overlaying text in Canva, vintage aesthetic, clean lines, isolated on a plain "
+            "background."
+        ),
+        "negative_prompt": (
+            "no text, no numbers, no letters, completely blank space, "
+            "embedded text, watermark, logo, cluttered composition, extra fingers, "
+            "low resolution, jpeg artifacts, harsh oversaturation"
+        ),
+        "magic_media_style": "Flat Vector",
+    },
+    # -- Layer 2: Vector Elements (CTA, badge — pure graphic shapes) -------
+    "vector_elements": {
+        "cta_button": (
+            "rounded pill button 'Order Now' in white Montserrat Bold at 16 px, "
+            "filled with #4A2E1B, 40 px border-radius, positioned bottom-right "
+            "corner with 48 px margin from the right and bottom edges"
+        ),
+        "badge": (
+            "small rounded pill badge reading 'NEW' in white on #D4A373 fill, "
+            "32 px height, 12 px horizontal padding, positioned top-right corner "
+            "with 24 px margin from the top and right edges"
+        ),
+        "person_cutout": (
+            "clean-edged espresso cup and notebook illustration centred below "
+            "the headline zone, flat vector isolated on transparent background"
+        ),
+        "giant_typography": (
+            "the word 'COFFEE' at 5× headline scale in Montserrat Bold at 10% "
+            "opacity behind the main headline, overlapping the top text zone"
+        ),
+    },
+    # -- Layer 3: Native Typography (text only — separate overlay) ---------
+    "native_typography": {
         "headline": "Grand Opening",
         "subtext": "Freshly roasted, every morning.",
+        "headline_pt": 48,
+        "subtext_pt": 18,
         "color_palette": ["#4A2E1B", "#D4A373", "#F5EFE6"],
         "fonts": {"headline_font": "Montserrat Bold", "body_font": "Playfair Display"},
-        "background_layers": "generated image fills the bottom 60%; solid cream rectangle layer behind the top 40% carries the headline/subtext",
-        "magic_media_style": "Flat Vector",
-        "graphic_layers": {
-            "person_cutout": "clean-edged espresso cup and notebook illustration centred below the headline zone, flat vector isolated on transparent background",
-            "cta_button": "rounded pill 'Order Now' button in bottom-right corner filled with #4A2E1B, white Montserrat Bold text at 16 px, 40 px border-radius",
-            "giant_typography": "the word 'COFFEE' at 5× headline scale in Montserrat Bold at 10% opacity behind the main headline, overlapping the top text zone",
-            "badge": "small rounded pill badge reading 'NEW' in white on #D4A373, top-right corner at 12 px padding, 32 px height",
-        },
+        "alignment_zone": "top 40% of canvas, centred horizontally, cream background panel behind text",
     },
     "direct_action_tip": [
-        "PRIMARY (AI-Assistant Holistic Generation): Feed this entire design to your Canva-connected AI assistant (Claude or ChatGPT) as a single unified request — magic_media_prompt: 'A minimalist 3d flat vector illustration for a specialty coffee shop grand opening, earthy terracotta and warm cream color palette, top-down view of an espresso cup next to an open notebook, ample negative space at the top for overlaying text in Canva, vintage aesthetic, clean lines, isolated on a plain background.' | Headline: 'Grand Opening' | Subtext: 'Freshly roasted, every morning.' | Color palette: #4A2E1B, #D4A373, #F5EFE6 | Fonts: Montserrat Bold / Playfair Display | Format: 1:1 (1080x1080) | Composition: image fills bottom 60%, cream panel behind top 40% for typography. Generate the complete visual+typography+palette+fonts composition holistically in ONE pass.",
+        "PRIMARY (AI-Assistant Holistic Generation): Feed this entire design to your Canva-connected AI assistant (Claude or ChatGPT) as a single unified request — magic_media_prompt: 'A minimalist 3d flat vector illustration for a specialty coffee shop grand opening.' | Headline: 'Grand Opening' (48 pt Montserrat Bold, #4A2E1B) | Subtext: 'Freshly roasted, every morning.' (18 pt Playfair Display, #D4A373) | Color palette: #4A2E1B, #D4A373, #F5EFE6 | Format: 1:1 (1080x1080) | Alignment zone: top 40% centred | CTA: 'Order Now' pill bottom-right | Badge: 'NEW' pill top-right. Generate the complete visual+vector+typography composition holistically in ONE pass.",
         "ALTERNATIVE (Manual Magic Media): Open Canva > Apps > Magic Media, paste the magic_media_prompt, and generate at 1:1 (1080x1080).",
-        "Add a Heading text box in the empty top space and type the headline 'Grand Opening'.",
-        "Add a Subheading text box below it with the subtext 'Freshly roasted, every morning.'.",
-        "Set the fonts to Montserrat Bold / Playfair Display and recolor using #4A2E1B, #D4A373, #F5EFE6 via the color picker.",
+        "Add a Heading text box in the top 40% zone, type 'Grand Opening', set to Montserrat Bold 48 pt in #4A2E1B.",
+        "Add the 'Order Now' CTA: draw a rounded rectangle bottom-right, fill #4A2E1B, add white text at 16 pt.",
+        "Add the 'NEW' badge: draw a rounded pill top-right, fill #D4A373, add white text at 12 pt.",
     ],
-    "canva_keywords": ["flat vector illustration", "isolated element on transparent background"],
 }
 
 
@@ -151,11 +173,40 @@ def _system_prompt(
             "(--ar) inside it; the ratio lives in the aspect_ratio field."
         )
 
+    # -- magic_media_prompt rule for Layer 1 (strict no-text) ---------------
+    if style is not None:
+        l1_rule = (
+            "1. raster_background — Layer 1 (Raster Background: image ONLY). "
+            "magic_media_prompt: MUST OPEN with the Style Preset's visual "
+            "architecture keywords verbatim, then continue with the standard "
+            "structure (subject -> medium -> composition -> lighting -> "
+            "color/mood -> camera -> quality). The Style Preset's aesthetic "
+            "takes absolute precedence. MUST reserve deliberate negative space "
+            "at the text_zone location. negative_prompt: MUST always contain "
+            "'no text, no numbers, no letters, completely blank space' as the "
+            "first four terms — the raster layer must NEVER contain any "
+            "renderable letters, numerals, or glyphs. Do NOT put aspect-ratio "
+            "flags (--ar) inside magic_media_prompt."
+        )
+    else:
+        l1_rule = (
+            "1. raster_background — Layer 1 (Raster Background: image ONLY). "
+            "magic_media_prompt: one flowing, copy-paste-ready English prompt "
+            "(subject -> medium -> composition -> lighting -> color/mood -> "
+            "camera -> quality). MUST reserve deliberate negative space at the "
+            "text_zone location. negative_prompt: MUST always contain 'no text, "
+            "no numbers, no letters, completely blank space' as the first four "
+            "terms — the raster layer must NEVER contain any renderable "
+            "letters, numerals, or glyphs. Do NOT put aspect-ratio flags "
+            "inside magic_media_prompt."
+        )
+
     return (
         "Sen Claude degil, DeepSeek tabanli bir Canva Prompt Muhendisisin "
         "(Canva Prompt Engineer) — bir otomasyon motorunun ikinci asamasisin. "
         "Your job: turn the Architect's design brief into ONE Canva automation "
-        "card with exactly three mandatory components.\n\n"
+        "card using the HYBRID SPLIT LAYER architecture — three independent "
+        "layers that the receiving assistant composes in precise layer order.\n\n"
         "HARD RULES:\n"
         "- Reply with a single JSON object and NOTHING else — no greeting, no "
         "prose, no markdown fences, no explanation, no question back to the "
@@ -167,32 +218,36 @@ def _system_prompt(
         "CANVA KNOWLEDGE BASE:\n"
         f"{kb}"
         f"{composition_section}\n\n"
-        "The three mandatory components:\n"
-        f"{magic_media_rule}\n"
-        "2. layer_typography_architecture — {headline (<=6 words), subtext (one "
-        "short line, <=14 words), color_palette (3-5 real HEX codes), fonts "
-        "{headline_font, body_font} from the typography.approved_pairings, "
-        "background_layers (how the generated image and text layers stack — "
-        "MUST reference the same text_zone location), and — when the active "
-        "style preset carries graphic_composition rules — graphic_layers "
-        "{person_cutout, cta_button, giant_typography, badge} each as one "
-        "concrete, placeable instruction describing a separate Canva shape/text "
-        "element to add on top of the generated image.\n"
-        "3. direct_action_tip — an ordered array of 3-5 steps per the "
+        "THE THREE HYBRID LAYERS (independent, composed in order 1→2→3):\n\n"
+        f"{l1_rule}\n\n"
+        "2. vector_elements — Layer 2 (Vector Graphics: decorative shapes on "
+        "top of the raster). Optional but recommended when the style preset "
+        "carries graphic_composition rules. Each key (cta_button, badge, "
+        "person_cutout, giant_typography) is a single concrete instruction "
+        "string describing one Canva shape/text element with its colour, size, "
+        "border-radius, and position specified in pixels where applicable. "
+        "These are PURE graphic shapes — they must NOT contain the headline "
+        "or subtext copy (that goes in Layer 3).\n\n"
+        "3. native_typography — Layer 3 (Native Text: the ONLY layer with "
+        "readable text). headline (<=6 words), subtext (<=14 words), "
+        "headline_pt (point size, 24-96), subtext_pt (point size, 12-32), "
+        "color_palette (3-5 HEX codes including the text fill colours), "
+        "fonts {{headline_font, body_font}} from typography.approved_pairings, "
+        "alignment_zone (where on the canvas this text block sits — MUST "
+        "reference the same text_zone location). The receiving assistant "
+        "will render this layer as real Canva text objects, so pt sizes and "
+        "HEX colours must be exact, not approximate.\n\n"
+        "4. direct_action_tip — an ordered array of 3-5 steps per the "
         "direct_action_tip rules above. Step 1 is the PRIMARY path: a unified "
-        "holistic-design instruction block for a Canva-connected AI assistant "
-        "(Claude/ChatGPT) that lists the actual magic_media_prompt, headline, "
-        "subtext, color_palette, fonts, aspect_ratio, and background_layers "
-        "values INLINE so the assistant can compose the entire visual+typography"
-        "+palette+fonts composition in ONE pass. Steps 2-5 are the ALTERNATIVE "
-        "manual Magic Media path: concrete, literally-clickable Canva UI steps."
+        "holistic-design instruction block that lists the actual raster, vector "
+        "and typography values INLINE. Steps 2-5 are the ALTERNATIVE manual "
+        "Magic Media path: concrete, literally-clickable Canva UI steps."
         f"{style_section}"
         f"{brand_section}\n\n"
-        "text_zone — copy the brief's text_zone value verbatim (top/bottom/"
-        "left/right/center). Both magic_media_prompt and background_layers "
-        "MUST mention this same location in plain English (e.g. text_zone "
-        "'top' -> mention 'top' in both) so the image's negative space and "
-        "the typography layer never disagree about where the text goes.\n\n"
+        "text_zone — copy the brief's text_zone value verbatim. Both "
+        "raster_background.magic_media_prompt and native_typography."
+        "alignment_zone MUST mention this same location so the background "
+        "image's negative space and the typography overlay never disagree.\n\n"
         "Honor the brief's aspect_ratio, target_tool, palette, style and "
         "negative_constraints exactly. Output MUST match this shape:\n"
         f"{json.dumps(OUTPUT_FORMAT_EXAMPLE, ensure_ascii=False, indent=2)}\n\n"
@@ -268,4 +323,8 @@ def generate_prompt(
 
     card.setdefault("concept", concept)
     validate_prompt(card, brand=brand, style=style)
+    # Ensure the returned card uses the hybrid split-layer format so every
+    # downstream consumer (API, paste_render, omni_channel, tests) sees the
+    # new structure regardless of what the LLM emitted.
+    _ensure_hybrid_format(card)
     return card

@@ -58,7 +58,7 @@ class _FakeOpenAIClient:
 def test_generate_prompt_parses_card_and_embeds_brief():
     client = _FakeOpenAIClient(json.dumps(VALID_CARD))
     card = generate_prompt(BRIEF, concept="Grand Opening Cafe", client=client)
-    assert card["magic_media_prompt"].startswith("A minimalist flat vector")
+    assert card["raster_background"]["magic_media_prompt"].startswith("A minimalist flat vector")
     sent = client.captured_kwargs["messages"][1]["content"]
     assert "Original concept: Grand Opening Cafe" in sent
     assert "Canva Magic Media" in sent  # brief was embedded
@@ -155,7 +155,7 @@ def test_generate_prompt_without_brand_ignores_font_choice():
     client = _FakeOpenAIClient(json.dumps(off_brand_card))
 
     card = generate_prompt(BRIEF, concept="Grand Opening Cafe", client=client)  # no brand
-    assert card["layer_typography_architecture"]["fonts"]["headline_font"] == "Anton"
+    assert card["native_typography"]["fonts"]["headline_font"] == "Anton"
 
 
 def test_generate_prompt_injects_format_specific_composition_from_brief():
@@ -277,7 +277,7 @@ def test_brand_without_visual_identity_works_with_style():
     assert "ELITE STYLE PRESET" in system_msg
     assert "STYLE OVERRIDE RULE" in system_msg
     assert "BRAND PROFILE" in system_msg
-    assert card["layer_typography_architecture"]["fonts"]["headline_font"] == "Inter"
+    assert card["native_typography"]["fonts"]["headline_font"] == "Inter"
 
 
 # A card whose magic_media_prompt actually contains the neo-grunge required
@@ -308,7 +308,7 @@ def test_generate_prompt_accepts_card_that_carries_required_style_keywords():
     style = load_style("neo-grunge-streetwear")
     client = _FakeOpenAIClient(json.dumps(STYLE_CARD))
     card = generate_prompt(BRIEF, concept="Underground gig poster", style=style, client=client)
-    assert "distressed grunge texture" in card["magic_media_prompt"]
+    assert "distressed grunge texture" in card["raster_background"]["magic_media_prompt"]
 
 
 def test_generate_prompt_rejects_card_missing_required_style_keyword():
