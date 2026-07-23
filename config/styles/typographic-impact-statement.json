@@ -1,0 +1,15 @@
+{
+  "slug": "typographic-impact-statement",
+  "name": "Typographic Impact Statement",
+  "description": "Typography-first motivational listicle cover: giant numbers, hand-drawn accents, and chalkboard/grunge textures where the type IS the hero.",
+  "recommended_magic_media_style": "Photographic",
+  "magic_media_keywords": "Dark charcoal slate chalkboard texture background, subtle grunge paper grain, completely clean matte dark grey wide open negative space, typography-first composition where giant bold numbers and condensed headlines are the sole visual subject.",
+  "required_keywords": [
+    "chalkboard texture",
+    "typography-first",
+    "matte dark grey",
+    "negative space"
+  ],
+  "palette_hint": "high-contrast typographic — white (#FFFFFF) on dark charcoal (#2A2A2A) anchored with a vibrant hand-drawn accent colour like orange (#E05A2B) for maximum pop",
+  "best_for": "motivational listicle covers, educational carousel title slides, and bold statement posters where typography is the primary visual hero"
+}

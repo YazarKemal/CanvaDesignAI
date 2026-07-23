@@ -57,15 +57,24 @@ def test_as_few_shot_block_returns_empty_for_unknown_style():
 
 
 def test_every_preset_has_two_archetype_cards():
-    """Every preset carries at least two golden cards (launch + story/carousel
-    archetypes). Three presets (corporate-dynamic-vector, swiss-international-grid,
-    neo-grunge-streetwear) carry a third card covering the graphic_composition
-    layers (person cutout, CTA, giant typography, badge) — these are additive,
-    not shadowing earlier archetypes."""
-    gc_styles = {"corporate-dynamic-vector", "swiss-international-grid", "neo-grunge-streetwear"}
+    """Every preset carries at least the baseline number of golden cards.
+    Specific overrides accommodate later batches:
+    - 4 cards: corporate-dynamic-vector, neo-grunge-streetwear
+      (launch + story/carousel + graphic_composition + hybrid_split_layer)
+    - 3 cards: swiss-international-grid, holographic-glassmorphism
+      (launch + story/carousel + graphic_composition or hybrid_split_layer)
+    - 1 card: typographic-impact-statement (new preset, single hybrid card)
+    - 2 cards: all others (launch + story/carousel)"""
+    expected_counts = {
+        "corporate-dynamic-vector": 4,
+        "neo-grunge-streetwear": 4,
+        "swiss-international-grid": 3,
+        "holographic-glassmorphism": 3,
+        "typographic-impact-statement": 1,
+    }
     for slug in list_styles():
         cards = get_golden_cards(slug)
-        expected = 3 if slug in gc_styles else 2
+        expected = expected_counts.get(slug, 2)
         assert len(cards) == expected, f"{slug}: expected {expected} golden cards, got {len(cards)}"
         assert all(c["score"] >= 9.0 for c in cards)
 
@@ -108,22 +117,25 @@ def test_every_golden_card_style_exists_in_presets():
 
 
 def test_every_golden_card_has_required_card_fields():
-    """Each golden card's card_json must pass basic schema inspection
-    (all mandatory fields present)."""
-    required = [
-        "concept",
-        "magic_media_prompt",
-        "negative_prompt",
-        "aspect_ratio",
-        "target_tool",
-        "text_zone",
-        "layer_typography_architecture",
-        "direct_action_tip",
-    ]
+    """Each golden card's card_json must pass basic schema inspection.
+    Accepts both legacy flat format and the new hybrid split-layer format."""
+    # Legacy flat format required fields
+    legacy_required = {"concept", "magic_media_prompt", "negative_prompt",
+                       "aspect_ratio", "target_tool", "text_zone",
+                       "layer_typography_architecture", "direct_action_tip"}
+    # Hybrid split-layer format required fields
+    hybrid_required = {"concept", "aspect_ratio", "target_tool", "text_zone",
+                       "raster_background", "vector_elements",
+                       "native_typography", "direct_action_tip"}
     for slug in list_styles():
         gc = get_golden_card(slug)
         if gc is None:
             continue
         card = gc["card_json"]
-        for field in required:
-            assert field in card, f"{slug}: golden card missing '{field}'"
+        is_legacy = all(f in card for f in legacy_required)
+        is_hybrid = all(f in card for f in hybrid_required)
+        assert is_legacy or is_hybrid, (
+            f"{slug}: golden card does not match legacy or hybrid format. "
+            f"Legacy missing: {legacy_required - set(card.keys())}. "
+            f"Hybrid missing: {hybrid_required - set(card.keys())}."
+        )

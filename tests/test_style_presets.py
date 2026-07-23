@@ -35,6 +35,7 @@ EXPECTED_SLUGS = {
     "streamer-energetic-glitch",
     "formal-ceremonial-turkish",
     "utility-planner-ornamental",
+    "typographic-impact-statement",
 }
 
 # The 4 wave-3 presets: defined to close observed market gaps in the library
