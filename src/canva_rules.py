@@ -61,6 +61,12 @@ CANVA_KNOWLEDGE_BASE: dict[str, Any] = {
         "Concept Art",
         "Neon",
     ],
+    "behance_editorial_palette": {
+        "matte_neutrals": ["#E8DDD0 (uncoated paper)", "#D4C5B9 (warm linen)", "#F5F0E8 (raw cotton)"],
+        "warm_accents": ["#B8936E (muted brass)", "#C4A882 (antique gold)", "#8B9D6B (rich pistachio)"],
+        "deep_anchors": ["#3B2A1E (deep espresso)", "#2C2416 (dark cocoa)", "#1A1A1A (off-black)"],
+        "rule": "Every palette must include at least one matte neutral and one deep anchor for Behance-level editorial contrast.",
+    },
     "stock_photo_keywords": [
         "corporate office space",
         "minimalist tech environment",
