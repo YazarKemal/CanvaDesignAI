@@ -45,60 +45,59 @@ OUTPUT_FORMAT_EXAMPLE = {
     "concept": "Grand Opening Cafe",
     "aspect_ratio": "1:1 (1080x1080)",
     "target_tool": "Canva Native Layout Engine",
-    "text_zone": "top",
-    "canva_keywords": ["editorial grid layout", "low-detail negative space 40%", "matte uncoated texture"],
-    # -- Layer 1: Background (stock photo or gradient — NO AI generation) ----
+    "text_zone": "center",
+    "canva_keywords": ["blank canvas", "text-only layout", "pure typography"],
+    # -- Layer 1: Background — BLANK CANVAS ONLY, no visuals ----------------
     "raster_background": {
         "magic_media_prompt": (
-            "A Canva stock photo search query for: modern specialty coffee shop interior, "
-            "warm terracotta and uncoated cream matte palette, top-down flat lay of espresso cup "
-            "beside an open notebook on a warm linen-textured oak table, 40% deliberate "
-            "low-detail negative space at the top for typography overlay, soft natural "
-            "window light, Behance editorial composition. "
-            "Use Canva Stock Library — do NOT generate with AI."
+            "BLANK CANVAS — solid #FFFFFF (pure white) background with the "
+            "typography block centered in the middle of the frame. "
+            "NO stock photos, NO templates, NO images, NO illustrations, "
+            "NO gradients, NO textures, NO patterns, NO placeholders. "
+            "A completely empty white canvas ready for pure text typography. "
+            "The reserved negative space at the center holds the headline and subtext."
         ),
         "negative_prompt": (
-            "no AI-generated imagery, no text, no numbers, no letters, "
-            "no watermark, no logo, cluttered composition, harsh oversaturation, "
-            "busy background, high-detail fill, pattern overload"
+            "no images, no photos, no stock visuals, no illustrations, "
+            "no templates, no placeholders, no gradients, no textures, "
+            "no patterns, no watermarks, no logos, no AI-generated imagery"
         ),
-        "layout_style": "Editorial",
+        "layout_style": "Minimalist",
     },
-    # -- Layer 2: Vector Elements (native Canva shapes) ----------------------
+    # -- Layer 2: Vector Elements — structural rules only --------------------
     "vector_elements": {
-        "thin_divider": (
-            "horizontal hairline rule at 0.5 px weight in #D4A373 at 60% opacity, "
-            "spanning 40% of canvas width, centered, positioned between subtext and "
-            "micro-labels. Use Canva's built-in line shape."
+        "top_rule": (
+            "thin horizontal rule at 1 px weight in #000000 at 30% opacity, "
+            "spanning 60% of canvas width, centered, positioned 120 px from "
+            "the top edge. Use Canva's built-in line shape."
         ),
-        "accent_frame": (
-            "thin rectangular border frame in muted brass #B8936E at 1 px weight, "
-            "inset 48 px from all canvas edges. Use Canva's built-in rectangle shape "
-            "with no fill, stroke only."
+        "bottom_rule": (
+            "thin horizontal rule at 1 px weight in #000000 at 30% opacity, "
+            "spanning 60% of canvas width, centered, positioned 120 px from "
+            "the bottom edge. Use Canva's built-in line shape."
         ),
     },
-    # -- Layer 3: Native Typography (Behance 2026 editorial hierarchy) --------
+    # -- Layer 3: Native Typography — TEXT ONLY ------------------------------
     "native_typography": {
         "headline": "Grand Opening",
         "subtext": "Freshly roasted, every morning.",
-        "headline_pt": 72,
-        "subtext_pt": 18,
-        "color_palette": ["#3B2A1E", "#B8936E", "#E8DDD0", "#8B9D6B", "#D4C5B9"],
-        "fonts": {"headline_font": "Montserrat Bold", "body_font": "Cormorant Garamond Regular"},
-        "alignment_zone": "top 30% of canvas, left-aligned with 48 px left margin, vertical stack",
-        "micro_tags": {
-            "volume_line": "VOL.01 / 2026",
-            "category_line": "EDITORIAL BRANDING",
-            "origin_line": "CRAFTED IN TURKEY",
-            "micro_pt": 9,
-            "micro_color": "#B8936E",
-            "micro_font": "Inter Regular",
-            "micro_spacing": "24 px below subtext, separated by thin divider rule",
+        "headline_pt": 48,
+        "subtext_pt": 16,
+        "color_palette": ["#000000", "#333333", "#999999", "#F5F5F5"],
+        "fonts": {"headline_font": "Montserrat Bold", "body_font": "Montserrat Regular"},
+        "alignment_zone": "centered horizontally, vertical stack starting at 35% from top",
+        "giant_footer_text": {
+            "text": "PORTFOLIO",
+            "pt": 96,
+            "color": "#000000",
+            "font": "Montserrat ExtraBold",
+            "position": "bottom 10% of canvas, centered horizontally",
+            "tracking": "0.15em",
         },
     },
     "direct_action_tip": [
-        "PRIMARY (Canva Native Layout Engine): Build this Behance-editorial design with Canva's native tools — (1) Search Canva Stock Library for 'modern coffee shop interior warm terracotta matte' and set the photo as full-bleed background at 1:1 (1080x1080), ensuring 40% low-detail negative space at the top. (2) Add a Heading text box at top 30%, left-aligned: type 'Grand Opening', set Montserrat Bold 72 pt, #3B2A1E. (3) Add Subheading below: 'Freshly roasted, every morning.', Cormorant Garamond Regular 18 pt, #B8936E. (4) Insert a thin horizontal line (0.5 px, #B8936E at 60% opacity) as divider. (5) Add three micro-label text boxes below the divider in Inter Regular 9 pt, #B8936E: 'VOL.01 / 2026', 'EDITORIAL BRANDING', 'CRAFTED IN TURKEY' — each on its own line with 4 px spacing. (6) Insert a thin rectangular border frame inset 48 px from all edges in muted brass #B8936E at 1 px stroke, no fill.",
-        "ALTERNATIVE (Step-by-step manual): Open Canva → Create Design → 1080x1080. Go to Photos tab and search 'coffee shop interior matte editorial', drag a stock photo to fill the canvas. Add a Heading text box at top 30% left-aligned, type 'Grand Opening', set Montserrat Bold 72 pt. Add subtext below at 18 pt. Insert a thin line shape as divider. Add three small text boxes for micro-labels at 9 pt. Insert a rectangle shape with no fill, 1 px stroke for the border frame.",
+        "PRIMARY (Canva Native Layout Engine — BLANK CANVAS, TEXT ONLY): (1) Open Canva → Create Design → 1080x1080. Start from a BLANK canvas — do NOT search templates, do NOT use Stock Library. (2) Set background to solid #FFFFFF (pure white). (3) Add a Heading text box centered at 35% from top: type 'Grand Opening', set Montserrat Bold 48 pt, #000000. (4) Add Subheading below: 'Freshly roasted, every morning.', Montserrat Regular 16 pt, #333333. (5) Insert a thin horizontal line at 120 px from top (1 px, #000000 30% opacity). (6) Insert a thin horizontal line at 120 px from bottom (1 px, #000000 30% opacity). (7) Add a GIANT text box at bottom 10%: type 'PORTFOLIO', set Montserrat ExtraBold 96 pt, #000000, tracking 0.15em, centered. (8) NO photos, NO stock images, NO templates — pure text typography only.",
+        "ALTERNATIVE (Manual): Open Canva → Blank 1080x1080 canvas. Set background #FFFFFF. Add text boxes only — no images, no templates, no stock library.",
     ],
 }
 
@@ -179,73 +178,55 @@ def _system_prompt(
             "aspect-ratio flags (--ar) inside it."
         )
 
-    # -- Layer 1 rule: Background (stock photo or gradient — NO AI) ---------
-    if style is not None:
-        l1_rule = (
-            "1. raster_background — Layer 1 (Background: stock photo or native "
-            "gradient). magic_media_prompt: a Canva Stock Library search query "
-            "OR a gradient definition. MUST OPEN with the Style Preset's visual "
-            "architecture keywords verbatim. The Style Preset's aesthetic takes "
-            "absolute precedence. MUST reserve at least 40% deliberate low-detail "
-            "negative space at the text_zone location — describe the background as "
-            "having a large uncluttered zone (solid colour, soft texture, or "
-            "gentle gradient, NOT busy pattern or high-detail fill). "
-            "negative_prompt: MUST always contain 'no AI-generated imagery, "
-            "no text, no numbers, no letters, busy background, high-detail fill' "
-            "as the first terms. layout_style: one of the knowledge-base "
-            "layout_styles. NEVER describe AI generation parameters."
-        )
-    else:
-        l1_rule = (
-            "1. raster_background — Layer 1 (Background: stock photo or native "
-            "gradient). magic_media_prompt: a Canva Stock Library search query "
-            "OR a gradient definition (subject -> setting -> composition -> "
-            "lighting -> color/mood -> quality descriptors). MUST reserve at "
-            "least 40% deliberate low-detail negative space at the text_zone "
-            "location — describe the background as having a large uncluttered "
-            "zone. negative_prompt: MUST always contain 'no AI-generated imagery, "
-            "no text, no numbers, no letters, busy background, high-detail fill' "
-            "as the first terms. layout_style: one of the knowledge-base "
-            "layout_styles. NEVER describe AI generation parameters."
-        )
+    # -- Layer 1 rule: Background — BLANK CANVAS, NO VISUALS ----------------
+    l1_rule = (
+        "1. raster_background — Layer 1 (Background: BLANK WHITE CANVAS ONLY). "
+        "magic_media_prompt MUST describe a solid #FFFFFF (pure white) blank "
+        "canvas with NO images, NO stock photos, NO templates, NO illustrations, "
+        "NO gradients, NO textures, NO patterns, NO placeholders of any kind. "
+        "MUST mention the text_zone location (e.g. 'the reserved negative space "
+        "at the center holds the headline and subtext') so the schema validator "
+        "sees text_zone consistency. "
+        "This is a TEXT-ONLY layout — the canvas must be completely empty "
+        "except for the typography and thin structural rules added in Layers 2-3. "
+        "negative_prompt MUST start with 'no images, no photos, no stock visuals, "
+        "no illustrations, no templates, no placeholders' as the first terms. "
+        "layout_style: 'Minimalist'. "
+        "NEVER describe a stock photo search query — there are NO visuals."
+    )
 
     return (
         "Sen Claude degil, DeepSeek tabanli bir Canva Prompt Muhendisisin "
         "(Canva Prompt Engineer) — bir otomasyon motorunun ikinci asamasisin. "
         "Your job: turn the Architect's design brief into ONE Canva automation "
-        "card using the HYBRID SPLIT LAYER architecture at BEHANCE PORTFOLIO "
-        "2026 editorial standard — background (stock photo / native gradient), "
-        "vector elements (editorial frames, thin rules, negative-space accents), "
-        "and typography (Canva text boxes with radical point-size contrast).\n\n"
+        "card — a PURE TYPOGRAPHY layout on a BLANK WHITE CANVAS.\n\n"
         "HARD RULES:\n"
-        "- DO NOT use Magic Media or AI image generation. All backgrounds "
-        "must be Canva Stock Library search queries or native CSS gradients. "
-        "All visual elements must be native Canva shapes. All typography must "
-        "use Canva's built-in font boxes.\n"
+        "- BLANK CANVAS ONLY: Start from a completely empty #FFFFFF (pure white) "
+        "canvas. NEVER search templates, NEVER use Canva Stock Library, NEVER "
+        "describe stock photos, NEVER include images/illustrations/photos of any "
+        "kind. This is TEXT-ONLY typography.\n"
         "- target_tool MUST be 'Canva Native Layout Engine'.\n"
-        "- BEHANCE 2026 EDITORIAL STANDARD — every card must meet these:\n"
-        "  a. 40% LOW-DETAIL NEGATIVE SPACE: Layer 1 background MUST describe "
-        "at least 40% of the canvas as deliberate low-detail negative space "
-        "(uncluttered, solid or softly textured, no busy elements) at the "
-        "text_zone location. The negative_prompt MUST exclude 'busy background', "
-        "'high-detail fill', 'pattern overload'.\n"
-        "  b. RADICAL POINT-SIZE CONTRAST: headline_pt MUST be 64-72 pt; "
-        "subtext_pt MUST be 16-20 pt; micro_tags.micro_pt MUST be 8-10 pt. "
-        "The ratio between headline and micro-label must be at least 6:1.\n"
-        "  c. MICRO-METADATA IN LAYER 3: native_typography MUST include a "
-        "micro_tags object with three editorial labels:\n"
-        "    - volume_line: 'VOL.01 / 2026' (or current year)\n"
-        "    - category_line: a 2-3 word editorial category (e.g. 'EDITORIAL "
-        "BRANDING', 'VISUAL IDENTITY', 'CAFE CULTURE')\n"
-        "    - origin_line: 'CRAFTED IN TURKEY' (or the brand's origin)\n"
-        "    - micro_pt: 9, micro_color: one of the palette's muted tones, "
-        "micro_font: 'Inter Regular' or brand body font at small size\n"
-        "    - micro_spacing: positioned 24 px below subtext, separated by a "
-        "thin divider rule\n"
-        "  d. BEHANCE-LEVEL PALETTE: prefer matte/raw editorial tones — "
-        "uncoated paper (#E8DDD0), warm linen (#D4C5B9), rich pistachio "
-        "(#8B9D6B), muted brass (#B8936E), deep espresso (#3B2A1E). Palette "
-        "must include at least ONE muted/warm neutral and ONE deep anchor.\n"
+        "- NO TEMPLATES: DO NOT reference any Canva template name, template "
+        "category, or pre-built layout. 'Portfolio' is NOT a template — it is "
+        "a giant footer text element you add yourself.\n"
+        "- NO AI IMAGE GENERATION: magic_media_prompt describes a BLANK WHITE "
+        "CANVAS, not a stock photo search. negative_prompt excludes all imagery.\n"
+        "- TEXT-ONLY RULES:\n"
+        "  a. BLANK BACKGROUND: Layer 1 is solid #FFFFFF. Nothing else.\n"
+        "  b. STRUCTURAL RULES ONLY: Layer 2 (vector_elements) contains thin "
+        "horizontal/vertical rules (1 px, #000000 at 20-30% opacity) for "
+        "structure. NO decorative shapes, NO frames, NO badges, NO buttons.\n"
+        "  c. PURE TYPOGRAPHY: Layer 3 (native_typography) is the ONLY content. "
+        "headline (48-72 pt, Montserrat Bold or Helvetica, #000000), subtext "
+        "(14-18 pt, Montserrat Regular or Helvetica Light, #333333).\n"
+        "  d. GIANT FOOTER: native_typography MUST include a giant_footer_text "
+        "object: text='PORTFOLIO', pt=80-120, color='#000000', "
+        "font='Montserrat ExtraBold' or 'Helvetica Bold', positioned at the "
+        "bottom 10% of the canvas, centered, with 0.10-0.20em letter-spacing.\n"
+        "  e. COLOR PALETTE: monochrome — #000000, #333333, #666666, "
+        "#999999, #F5F5F5. Include at least one near-white anchor (#F5F5F5) "
+        "paired with #000000 to guarantee WCAG AA contrast >= 4.5:1. "
+        "All text is black/dark grey on the white canvas.\n"
         "- Reply with a single JSON object and NOTHING else — no greeting, no "
         "prose, no markdown fences, no explanation. Pure data only.\n"
         "- If anything in the brief is ambiguous, make the most Canva-sensible "
@@ -256,29 +237,29 @@ def _system_prompt(
         f"{composition_section}\n\n"
         "THE THREE HYBRID LAYERS (independent, composed in order 1→2→3):\n\n"
         f"{l1_rule}\n\n"
-        "2. vector_elements — Layer 2 (Editorial Vector Accents: thin divider "
-        "rules, hairline frames, subtle geometric accents). Avoid loud CTA "
-        "buttons unless the brief explicitly requests them. Prefer: thin "
-        "horizontal/vertical rules (0.5-1 px), rectangular border frames "
-        "(1 px stroke, no fill, muted brass or warm neutral color), subtle "
-        "corner brackets, or tiny geometric markers. These are Canva's "
-        "BUILT-IN line/rectangle shapes — NOT AI-generated.\n\n"
-        "3. native_typography — Layer 3 (Behance Editorial Typography Stack). "
-        "headline (<=6 words, 64-72 pt, bold weight), subtext (<=14 words, "
-        "16-20 pt, regular/light weight), micro_tags (3 editorial labels at "
-        "8-10 pt in a muted tone, separated by a thin rule). color_palette "
-        "(4-5 HEX codes including at least one matte neutral and one deep "
-        "anchor from the Behance palette). fonts {{headline_font, body_font}} "
-        "from native_typography lists. alignment_zone MUST specify exact "
-        "coordinates (e.g. 'top 30%, left-aligned with 48 px margin') and "
-        "reference the same text_zone location. The micro_tags object MUST "
-        "be present with volume_line, category_line, origin_line, micro_pt, "
-        "micro_color, micro_font, and micro_spacing.\n\n"
+        "2. vector_elements — Layer 2 (Structural Rules Only). MAXIMUM 2-3 "
+        "elements: thin horizontal rules at 1 px weight, #000000 at 20-30% "
+        "opacity, spanning 40-60% of canvas width. Positioned as top/bottom "
+        "separators (e.g. 120 px from top edge, 120 px from bottom edge). "
+        "NO decorative shapes, NO frames, NO badges, NO buttons, NO icons. "
+        "Use ONLY Canva's built-in line shape.\n\n"
+        "3. native_typography — Layer 3 (Pure Typography — TEXT ONLY). "
+        "headline (<=6 words, 48-72 pt, Montserrat Bold or Helvetica Bold, "
+        "#000000), subtext (<=14 words, 14-18 pt, Montserrat Regular or "
+        "Helvetica Light, #333333). giant_footer_text object REQUIRED: "
+        "text='PORTFOLIO', pt=80-120, color='#000000', font='Montserrat "
+        "ExtraBold' or 'Helvetica Bold', position='bottom 10% of canvas, "
+        "centered', tracking='0.15em'. color_palette is monochrome: "
+        "#000000, #333333, #666666. fonts from Canva's built-in library: "
+        "Montserrat or Helvetica families. alignment_zone specifies where "
+        "the headline/subtext stack sits (centered horizontally, starting "
+        "at 30-40% from top).\n\n"
         "4. direct_action_tip — an ordered array of 2-5 steps. Step 1 "
-        "(PRIMARY) is a unified Canva Native Layout Engine instruction block "
-        "listing all values INLINE. Must include the micro-label text boxes "
-        "and the editorial divider rule. Remaining steps are manual Canva UI "
-        "steps."
+        "(PRIMARY) describes the blank-canvas text-only build in order: "
+        "set background #FFFFFF, add headline, add subtext, add structural "
+        "rules, add giant PORTFOLIO footer. NO stock library steps, NO "
+        "template steps, NO photo steps. Remaining steps are manual Canva "
+        "text-only UI actions."
         f"{style_section}"
         f"{brand_section}\n\n"
         "text_zone — copy the brief's text_zone value verbatim. Both "
