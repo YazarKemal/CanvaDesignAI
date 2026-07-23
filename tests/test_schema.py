@@ -128,7 +128,7 @@ def test_text_zone_not_mentioned_in_background_layers_rejected():
     # text_zone still agrees with magic_media_prompt ("top"), but
     # background_layers is rewritten to omit any zone keyword.
     card["layer_typography_architecture"]["background_layers"] = "generated image fills the whole canvas"
-    with pytest.raises(PromptValidationError, match="background_layers"):
+    with pytest.raises(PromptValidationError, match="alignment_zone"):
         validate_prompt(card)
 
 

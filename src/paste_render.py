@@ -31,59 +31,116 @@ def render_for_assistant_paste(card: dict[str, Any]) -> str:
     """Render `card` as a plain-text block to paste into a Claude/ChatGPT
     chat that has a Canva tool connected.
 
+    Supports both the new hybrid-split-layer format (raster_background /
+    vector_elements / native_typography) and the legacy flat format.
+
     The block leads with a unified holistic-design instruction — the full
     magic_media_prompt + headline + subtext + palette + fonts + format +
     composition in one block so the receiving AI assistant can generate the
     complete design in a single pass. Alternative manual Magic Media steps
     follow as a secondary path.
     """
-    layer = card["layer_typography_architecture"]
-    fonts = layer["fonts"]
-    palette = ", ".join(layer["color_palette"])
+    # -- Resolve fields from either new (hybrid) or legacy (flat) format ----
+    raster = card.get("raster_background", {})
+    native = card.get("native_typography", {})
+    vector = card.get("vector_elements", {})
+
+    legacy_layer = card.get("layer_typography_architecture", {})
+
+    magic_prompt = raster.get("magic_media_prompt", card.get("magic_media_prompt", ""))
+    neg_prompt = raster.get("negative_prompt", card.get("negative_prompt", ""))
+    media_style = raster.get("magic_media_style", legacy_layer.get("magic_media_style", "N/A"))
+
+    headline = native.get("headline", legacy_layer.get("headline", ""))
+    subtext = native.get("subtext", legacy_layer.get("subtext", ""))
+    palette_list = native.get("color_palette", legacy_layer.get("color_palette", []))
+    palette = ", ".join(palette_list)
+    fonts = native.get("fonts", legacy_layer.get("fonts", {}))
+
+    if fonts:
+        font_line = f"{fonts.get('headline_font', '')} / {fonts.get('body_font', '')}"
+    else:
+        font_line = "N/A"
+
+    alignment = native.get(
+        "alignment_zone",
+        legacy_layer.get("background_layers", f"typography at {card.get('text_zone', 'top')}"),
+    )
+
+    hl_pt = native.get("headline_pt")
+    sub_pt = native.get("subtext_pt")
 
     lines = [
         f"Using your connected Canva tool, generate this design now at "
-        f"{card['aspect_ratio']} — a single holistic composition with the "
-        f"visual, typography, palette, and fonts all composed together in "
-        f"one pass. Do not ask me any clarifying questions.",
+        f"{card['aspect_ratio']} — a single holistic composition with all "
+        f"three hybrid layers (raster background + vector elements + native "
+        f"typography) composed together in one pass. Do not ask me any "
+        f"clarifying questions.",
         "",
-        "UNIFIED DESIGN BRIEF:",
-        f"  Visual direction: {card['magic_media_prompt']}",
-        f"  Negative prompt: {card['negative_prompt']}",
-        f"  Headline (this is the visible title text on the design): {layer['headline']}",
-        f"  Subtext (this is the visible supporting text on the design): {layer['subtext']}",
-        f"  Color palette (typography styling only — apply these HEX codes as "
-        f"fill/stroke colors; do NOT render the codes as visible text): {palette}",
-        f"  Fonts (typography styling only — apply these as the font family "
-        f"for the headline/subtext layers; do NOT render the font names as "
-        f"visible text on the design): {fonts['headline_font']} / {fonts['body_font']}",
-        f"  Format: {card['aspect_ratio']}",
-        f"  Target tool: {card['target_tool']}",
-        f"  Composition: {layer['background_layers']}",
-        f"  Text zone: {card['text_zone']}",
-        f"  Magic Media style: {layer.get('magic_media_style', 'N/A')}",
+        "UNIFIED DESIGN BRIEF (Hybrid Split Layer):",
+        "",
+        "-- Layer 1: Raster Background (image only — absolutely NO text) --",
+        f"  Visual direction: {magic_prompt}",
+        f"  Negative prompt: {neg_prompt}",
+        f"  Magic Media style: {media_style}",
+        "",
+        "-- Layer 2: Vector Elements (CTA, badge, cutout — pure graphics) --",
     ]
 
-    # -- Graphic layers (person cutout, CTA, giant type, badge) --------------
-    graphic = layer.get("graphic_layers")
-    if graphic and isinstance(graphic, dict):
-        lines.append("")
-        lines.append(
-            "Graphic composition layers (decorative elements — add each as a "
-            "separate Canva shape or text layer on top of the generated image):"
-        )
-        if graphic.get("person_cutout"):
-            lines.append(f"  Person cutout: {graphic['person_cutout']}")
-        if graphic.get("cta_button"):
-            lines.append(f"  CTA button: {graphic['cta_button']}")
-        if graphic.get("giant_typography"):
-            lines.append(f"  Giant typography: {graphic['giant_typography']}")
-        if graphic.get("badge"):
-            lines.append(f"  Badge: {graphic['badge']}")
+    # Vector elements from new format ...
+    for key, label in [
+        ("cta_button", "CTA button"),
+        ("badge", "Badge"),
+        ("person_cutout", "Person cutout"),
+        ("giant_typography", "Giant typography"),
+    ]:
+        val = vector.get(key)
+        if val:
+            lines.append(f"  {label}: {val}")
+
+    # ... or legacy graphic_layers
+    legacy_gc = legacy_layer.get("graphic_layers")
+    if legacy_gc and not vector:
+        for key, label in [
+            ("cta_button", "CTA button"),
+            ("badge", "Badge"),
+            ("person_cutout", "Person cutout"),
+            ("giant_typography", "Giant typography"),
+        ]:
+            val = legacy_gc.get(key)
+            if val:
+                lines.append(f"  {label}: {val}")
+
+    if not vector and not legacy_gc:
+        lines.append("  (none — this design has no vector overlay elements)")
+
+    lines.extend(
+        [
+            "",
+            "-- Layer 3: Native Typography (text only — separate overlay) --",
+            f"  Headline (this is the visible title text on the design): {headline}",
+        ]
+    )
+    if hl_pt:
+        lines.append(f"  Headline point size: {hl_pt} pt")
+    lines.append(f"  Subtext (this is the visible supporting text on the design): {subtext}")
+    if sub_pt:
+        lines.append(f"  Subtext point size: {sub_pt} pt")
+    lines.extend(
+        [
+            f"  Color palette (typography styling only — apply these HEX codes as "
+            f"fill/stroke colors; do NOT render the codes as visible text): {palette}",
+            f"  Fonts (typography styling only — apply these as the font family "
+            f"for the headline/subtext layers; do NOT render the font names as "
+            f"visible text on the design): {font_line}",
+            f"  Alignment zone: {alignment}",
+            f"  Format: {card['aspect_ratio']}",
+            f"  Target tool: {card['target_tool']}",
+            f"  Text zone: {card['text_zone']}",
+        ]
+    )
 
     lines.extend(["", "Alternative — manual Canva steps:"])
-    # Render the direct_action_tip steps; the first is the primary AI-assistant
-    # path and the rest are the manual alternative.
     lines.extend(f"  {i}. {step}" for i, step in enumerate(card["direct_action_tip"], start=1))
 
     return "\n".join(lines)

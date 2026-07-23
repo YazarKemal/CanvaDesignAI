@@ -34,28 +34,49 @@ TEXT_ZONES: tuple[str, ...] = ("top", "bottom", "left", "right", "center")
 
 PROMPT_CARD_SCHEMA: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "CaVDesign Canva Automation Card",
+    "title": "CaVDesign Canva Automation Card (Hybrid Split Layer)",
     "type": "object",
     "required": [
         "concept",
-        "magic_media_prompt",
-        "negative_prompt",
+        "raster_background",
+        "vector_elements",
+        "native_typography",
         "aspect_ratio",
         "target_tool",
         "text_zone",
-        "layer_typography_architecture",
         "direct_action_tip",
     ],
     "properties": {
         "concept": {"type": "string", "minLength": 1},
-        "magic_media_prompt": {"type": "string", "minLength": 30},
-        "negative_prompt": {"type": "string", "minLength": 1},
         "aspect_ratio": {"type": "string", "minLength": 1},
         "target_tool": {"type": "string", "minLength": 1},
         "text_zone": {"type": "string", "enum": list(TEXT_ZONES)},
-        "layer_typography_architecture": {
+        # -- Layer 1: Raster Background (image only — no text ever) -----------
+        "raster_background": {
             "type": "object",
-            "required": ["headline", "subtext", "color_palette", "fonts", "background_layers"],
+            "required": ["magic_media_prompt", "negative_prompt"],
+            "properties": {
+                "magic_media_prompt": {"type": "string", "minLength": 30},
+                "negative_prompt": {"type": "string", "minLength": 1},
+                "magic_media_style": {"type": "string"},
+            },
+            "additionalProperties": True,
+        },
+        # -- Layer 2: Vector Elements (CTA, badge, cutout — pure graphics) ---
+        "vector_elements": {
+            "type": "object",
+            "properties": {
+                "cta_button": {"type": "string"},
+                "badge": {"type": "string"},
+                "person_cutout": {"type": "string"},
+                "giant_typography": {"type": "string"},
+            },
+            "additionalProperties": True,
+        },
+        # -- Layer 3: Native Typography (text only, separate overlay) ---------
+        "native_typography": {
+            "type": "object",
+            "required": ["headline", "subtext", "color_palette", "fonts", "alignment_zone"],
             "properties": {
                 "headline": {"type": "string", "minLength": 1},
                 "subtext": {"type": "string", "minLength": 1},
@@ -74,18 +95,9 @@ PROMPT_CARD_SCHEMA: dict[str, Any] = {
                     },
                     "additionalProperties": True,
                 },
-                "background_layers": {"type": "string", "minLength": 1},
-                "magic_media_style": {"type": "string"},
-                "graphic_layers": {
-                    "type": "object",
-                    "properties": {
-                        "person_cutout": {"type": "string"},
-                        "cta_button": {"type": "string"},
-                        "giant_typography": {"type": "string"},
-                        "badge": {"type": "string"},
-                    },
-                    "additionalProperties": True,
-                },
+                "alignment_zone": {"type": "string", "minLength": 1},
+                "headline_pt": {"type": "number", "minimum": 12, "maximum": 200},
+                "subtext_pt": {"type": "number", "minimum": 8, "maximum": 72},
             },
             "additionalProperties": True,
         },
@@ -97,6 +109,10 @@ PROMPT_CARD_SCHEMA: dict[str, Any] = {
         "canva_keywords": {
             "type": "array",
             "items": {"type": "string", "minLength": 1},
+        },
+        "layer_typography_architecture": {  # legacy — still accepted, maps to new fields
+            "type": "object",
+            "additionalProperties": True,
         },
     },
     "additionalProperties": True,
@@ -197,27 +213,51 @@ def _validate_color_contrast(layer: dict[str, Any]) -> None:
 
 def _validate_text_zone_consistency(card: dict[str, Any]) -> None:
     zone = card["text_zone"].lower()
-    prompt_text = card["magic_media_prompt"].lower()
-    background_layers = card["layer_typography_architecture"]["background_layers"].lower()
+    raster = card.get("raster_background", {})
+    prompt_text = raster.get("magic_media_prompt", card.get("magic_media_prompt", "")).lower()
 
     if zone not in prompt_text:
         raise PromptValidationError(
-            f"text_zone is '{zone}' but magic_media_prompt never mentions '{zone}' — "
-            "the image's reserved negative space must match text_zone exactly."
+            f"text_zone is '{zone}' but raster_background.magic_media_prompt "
+            f"never mentions '{zone}' — the image's reserved negative space "
+            "must match text_zone exactly."
         )
-    if zone not in background_layers:
-        raise PromptValidationError(
-            f"text_zone is '{zone}' but layer_typography_architecture.background_layers "
-            f"never mentions '{zone}' — the typography layer's stated position must "
-            "match text_zone exactly."
-        )
+
+    # alignment_zone replaces background_layers in the new schema.
+    native = card.get("native_typography", {})
+    alignment = native.get("alignment_zone", "").lower()
+    if alignment:
+        if zone not in alignment:
+            raise PromptValidationError(
+                f"text_zone is '{zone}' but native_typography.alignment_zone "
+                f"('{alignment}') does not mention '{zone}' — the typography "
+                "layer's stated position must match text_zone exactly."
+            )
+    else:
+        # Legacy path: old cards have background_layers on the flat field.
+        old_layer = card.get("layer_typography_architecture", {})
+        bg = old_layer.get("background_layers", "").lower()
+        if bg and zone not in bg:
+            raise PromptValidationError(
+                f"text_zone is '{zone}' but background_layers never mentions "
+                f"'{zone}' — the typography layer's stated position must "
+                "match text_zone exactly."
+            )
+
+
+def _typography_layer(card: dict[str, Any]) -> dict[str, Any]:
+    """Return the typography sub-object, preferring the new `native_typography`
+    field over the legacy `layer_typography_architecture`."""
+    if "native_typography" in card:
+        return card["native_typography"]
+    return card.get("layer_typography_architecture", {})
 
 
 def validate_brand_compliance(card: dict[str, Any], brand: dict[str, Any]) -> None:
     """When a brand profile is active, the card MUST use exactly that
     brand's signature fonts and draw color_palette only from its approved
     colors. Raises PromptValidationError on the first violation found."""
-    layer = card["layer_typography_architecture"]
+    layer = _typography_layer(card)
     signature = brand["signature_fonts"]
 
     for role in ("headline_font", "body_font"):
@@ -243,7 +283,10 @@ def validate_style_compliance(card: dict[str, Any], style: dict[str, Any]) -> No
     the elite look is guaranteed to land in the image prompt rather than being
     silently paraphrased away. Raises PromptValidationError on the first
     missing keyword (retried, same mechanism as brand/contrast/text_zone)."""
-    prompt_text = card["magic_media_prompt"].lower()
+    raster = card.get("raster_background", {})
+    prompt_text = raster.get(
+        "magic_media_prompt", card.get("magic_media_prompt", "")
+    ).lower()
     for keyword in style.get("required_keywords", []):
         if keyword.lower() not in prompt_text:
             raise PromptValidationError(
@@ -278,7 +321,10 @@ def validate_negative_prompt_boost(card: dict[str, Any], style: dict[str, Any]) 
     if len(boost_terms) < 2:
         return  # single-term boosts are too brittle to enforce
 
-    prompt_lower = card["negative_prompt"].lower()
+    raster = card.get("raster_background", {})
+    prompt_lower = raster.get(
+        "negative_prompt", card.get("negative_prompt", "")
+    ).lower()
     missing: list[str] = []
     for term in boost_terms:
         if term.lower() not in prompt_lower:
@@ -308,9 +354,16 @@ def validate_prompt(
     rule (chat language, contrast, hierarchy, zone consistency, and — when
     given — brand compliance and style-preset keyword compliance).
 
+    Accepts both the new hybrid-split-layer format (raster_background /
+    vector_elements / native_typography) and the legacy flat format
+    (magic_media_prompt, negative_prompt, layer_typography_architecture).
+
     Raises PromptValidationError with a readable message on the first
     failing check.
     """
+    # -- Normalise legacy cards into the new schema for validation ----------
+    _ensure_hybrid_format(card)
+
     try:
         jsonschema.validate(instance=card, schema=PROMPT_CARD_SCHEMA)
     except jsonschema.ValidationError as exc:
@@ -323,7 +376,7 @@ def validate_prompt(
             "Output must be pure Canva automation data — no chat, no questions."
         )
 
-    layer = card["layer_typography_architecture"]
+    layer = _typography_layer(card)
     _validate_typography_hierarchy(layer)
     _validate_color_contrast(layer)
     _validate_text_zone_consistency(card)
@@ -334,3 +387,51 @@ def validate_prompt(
     if style is not None:
         validate_style_compliance(card, style)
         validate_negative_prompt_boost(card, style)
+
+
+def _ensure_hybrid_format(card: dict[str, Any]) -> None:
+    """Normalise a legacy flat card into the hybrid split-layer format in-place.
+
+    If *card* uses the old magic_media_prompt / negative_prompt /
+    layer_typography_architecture keys, they are mapped into
+    raster_background / vector_elements / native_typography so downstream
+    validation code only has to reason about one shape.
+    """
+    # Already in new format — nothing to do.
+    if "raster_background" in card:
+        return
+
+    layer = card.pop("layer_typography_architecture", {})
+
+    raster: dict[str, Any] = {
+        "magic_media_prompt": card.pop("magic_media_prompt", ""),
+        "negative_prompt": card.pop("negative_prompt", ""),
+    }
+    ms = layer.pop("magic_media_style", None)
+    if ms:
+        raster["magic_media_style"] = ms
+    card.setdefault("raster_background", raster)
+
+    # graphic_layers → vector_elements
+    gl = layer.pop("graphic_layers", None)
+    vec: dict[str, Any] = {}
+    if gl and isinstance(gl, dict):
+        vec = {k: v for k, v in gl.items() if v}
+    card.setdefault("vector_elements", vec)
+
+    # typography fields → native_typography
+    native: dict[str, Any] = {
+        "headline": layer.pop("headline", ""),
+        "subtext": layer.pop("subtext", ""),
+        "color_palette": layer.pop("color_palette", []),
+        "fonts": layer.pop("fonts", {}),
+        "alignment_zone": layer.pop(
+            "background_layers",
+            f"typography layer at {card.get('text_zone', 'top')}",
+        ),
+    }
+    # Carry over remaining fields.
+    for k, v in layer.items():
+        if k not in native:
+            native[k] = v
+    card.setdefault("native_typography", native)

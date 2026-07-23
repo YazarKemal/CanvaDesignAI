@@ -60,16 +60,16 @@ def test_adapt_to_format_merges_fixed_fields_with_adaptation():
 
     # Fixed fields carried over unchanged.
     assert variant["concept"] == base["concept"]
-    assert variant["layer_typography_architecture"]["headline"] == base["layer_typography_architecture"]["headline"]
-    assert variant["layer_typography_architecture"]["color_palette"] == base["layer_typography_architecture"]["color_palette"]
-    assert variant["layer_typography_architecture"]["fonts"] == base["layer_typography_architecture"]["fonts"]
-    assert variant["negative_prompt"] == base["negative_prompt"]
+    assert variant["native_typography"]["headline"] == base["layer_typography_architecture"]["headline"]
+    assert variant["native_typography"]["color_palette"] == base["layer_typography_architecture"]["color_palette"]
+    assert variant["native_typography"]["fonts"] == base["layer_typography_architecture"]["fonts"]
+    assert variant["raster_background"]["negative_prompt"] == base["negative_prompt"]
 
     # Adapted fields.
     assert variant["aspect_ratio"] == TARGET_FORMATS["instagram_story"]
     assert variant["text_zone"] == "center"
-    assert variant["magic_media_prompt"] == VALID_STORY_ADAPTATION["magic_media_prompt"]
-    assert variant["layer_typography_architecture"]["background_layers"] == VALID_STORY_ADAPTATION["background_layers"]
+    assert variant["raster_background"]["magic_media_prompt"] == VALID_STORY_ADAPTATION["magic_media_prompt"]
+    assert variant["native_typography"]["alignment_zone"] == VALID_STORY_ADAPTATION["background_layers"]
 
     # The original base card object must not be mutated.
     assert base["text_zone"] == "top"
@@ -80,7 +80,7 @@ def test_adapt_to_format_does_not_change_base_card_headline_reference():
     base = _load_base_card()
     client = _FakeClient([json.dumps(VALID_STORY_ADAPTATION)])
     variant = adapt_to_format(base, "instagram_story", client=client)
-    variant["layer_typography_architecture"]["headline"] = "Mutated"
+    variant["native_typography"]["headline"] = "Mutated"
     assert base["layer_typography_architecture"]["headline"] == "Grand Opening"
 
 
@@ -108,8 +108,8 @@ def test_adapt_to_format_auto_corrects_zone_mismatch_without_retry():
 
     assert variant["text_zone"] == "center"
     assert len(client.calls) == 1  # no retry needed — healed in place
-    assert "center" in variant["magic_media_prompt"].lower()
-    assert "center" in variant["layer_typography_architecture"]["background_layers"].lower()
+    assert "center" in variant["raster_background"]["magic_media_prompt"].lower()
+    assert "center" in variant["native_typography"]["alignment_zone"].lower()
 
 
 def test_adapt_to_format_rewrites_stale_zone_direction_in_prompt():
@@ -128,7 +128,7 @@ def test_adapt_to_format_rewrites_stale_zone_direction_in_prompt():
 
     variant = adapt_to_format(base, "instagram_story", client=client)
 
-    prompt = variant["magic_media_prompt"]
+    prompt = variant["raster_background"]["magic_media_prompt"]
     assert "negative space at the bottom" in prompt
     assert "negative space at the top" not in prompt
     # The unrelated camera-angle phrase must be preserved.
@@ -196,7 +196,7 @@ def test_adapt_injects_style_preset_and_preserves_keywords():
     assert "Neo-Grunge Streetwear" in system_msg
     assert "distressed grunge texture" in system_msg  # required keyword reminder
     # style compliance held on the adapted variant
-    assert "distressed grunge texture" in variant["magic_media_prompt"]
+    assert "distressed grunge texture" in variant["raster_background"]["magic_media_prompt"]
 
 
 def test_adapt_rejects_variant_that_drops_style_keywords():

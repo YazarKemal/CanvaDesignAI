@@ -81,10 +81,15 @@ def test_build_brief_steers_art_direction_with_aesthetic_taxonomy():
 
 
 def test_build_brief_without_manual_style_includes_auto_style_menu():
-    """When no style is manually selected, the Architect's system prompt must
-    include the AVAILABLE STYLE PRESETS menu so it can auto-pick a style."""
+    """When no style is manually selected, the Architect's system prompt
+    must include the AVAILABLE STYLE PRESETS menu so it can auto-pick a
+    style — BUT only when the Auto Style Injector does NOT already match
+    a keyword.  An ambiguous request like 'a coffee shop instagram post'
+    triggers the auto-injector (cafe/coffee keywords), so the menu is
+    omitted because a style IS now active.  Requests with no keyword
+    hits still get the full menu."""
     client = _FakeOpenAIClient(json.dumps(BRIEF))
-    build_brief("a coffee shop instagram post", client=client)
+    build_brief("a generic design with no specific keywords", client=client)
     system_msg = client.captured_kwargs["messages"][0]["content"]
     assert "AVAILABLE STYLE PRESETS" in system_msg
     assert "selected_style_id" in system_msg
