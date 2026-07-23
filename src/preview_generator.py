@@ -28,6 +28,32 @@ _MAX_CANVAS_WIDTH = 640  # px — SVG renders at this display width
 _TEXT_ZONE_FRACTION = 0.32  # fraction of canvas occupied by the text zone
 
 
+def _resolve_layer(card: dict[str, Any]) -> dict[str, Any]:
+    """Return the typography-layer dict whether the card uses the new hybrid
+    format (native_typography) or the legacy format (layer_typography_architecture)."""
+    native = card.get("native_typography", {})
+    legacy = card.get("layer_typography_architecture", {})
+    # Merge: native wins, legacy is fallback for each key.
+    return {
+        "headline": native.get("headline", legacy.get("headline", "")),
+        "subtext": native.get("subtext", legacy.get("subtext", "")),
+        "color_palette": native.get("color_palette", legacy.get("color_palette", [])),
+        "fonts": native.get("fonts", legacy.get("fonts", {})),
+        "alignment_zone": native.get("alignment_zone", legacy.get("background_layers", "")),
+    }
+
+
+def _resolve_style_name(card: dict[str, Any]) -> str | None:
+    """Return the layout/magic-media style name from either format."""
+    raster = card.get("raster_background", {})
+    if "layout_style" in raster:
+        return raster["layout_style"]
+    if "magic_media_style" in raster:
+        return raster["magic_media_style"]
+    legacy = card.get("layer_typography_architecture", {})
+    return legacy.get("magic_media_style")
+
+
 def _parse_pixel_dims(aspect_ratio: str) -> tuple[int, int]:
     """Extract (width, height) in pixels from an aspect-ratio string.
 
@@ -198,7 +224,7 @@ _CSS = """\
 
 def _render_svg(card: dict[str, Any]) -> str:
     """Return the ``<svg>…</svg>`` wireframe element."""
-    layer = card["layer_typography_architecture"]
+    layer = _resolve_layer(card)
     zone = card["text_zone"]
     palette = layer["color_palette"]
     headline = layer["headline"]
@@ -322,7 +348,7 @@ def _render_palette_swatches(palette: list[str]) -> str:
 
 def _render_typography(card: dict[str, Any]) -> str:
     """Return HTML for the typography info section."""
-    layer = card["layer_typography_architecture"]
+    layer = _resolve_layer(card)
     fonts = layer["fonts"]
     return f"""\
 <div class="typo-grid">
@@ -349,12 +375,12 @@ def _render_meta(card: dict[str, Any]) -> str:
     parts.append(
         f"<span>Tool: <strong>{_xml_escape(card['target_tool'])}</strong></span>"
     )
-    style_name = card.get("layer_typography_architecture", {}).get("magic_media_style")
+    style_name = _resolve_style_name(card)
     if style_name:
         parts.append(f"<span>Style: <strong>{_xml_escape(style_name)}</strong></span>")
 
     # Contrast ratio badge
-    palette = card["layer_typography_architecture"]["color_palette"]
+    palette = _resolve_layer(card)["color_palette"]
     try:
         _a, _b, ratio = best_contrast_pair(palette)
         ok = ratio >= 4.5
@@ -389,9 +415,9 @@ def generate_wireframe(card: dict[str, Any]) -> str:
       drawn from the palette's best-contrast pair.
     * Colour-palette swatch chips with HEX labels.
     * Typography metadata (headline/subtext fonts and copy).
-    * Aspect ratio, target tool, magic-media style, and WCAG contrast badge.
+    * Aspect ratio, target tool, layout style, and WCAG contrast badge.
     """
-    layer = card["layer_typography_architecture"]
+    layer = _resolve_layer(card)
     palette = layer["color_palette"]
     concept = _xml_escape(card.get("concept", "Untitled"))
 
