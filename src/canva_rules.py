@@ -1,9 +1,13 @@
 """Canva knowledge base — the terms, dimensions and library keywords that
-Canva's Magic Media / Canva GPT algorithms understand best.
+Canva's Native Layout Engine understands best.
 
 This is the fixed "Canva expertise" the Architect agent (DeepSeek) reasons
 over when it turns a plain user request into a technical design brief. Kept
 as plain data so both agents and the tests share one source of truth.
+
+All references to Magic Media / AI image generation have been retired in
+favour of native Canva stock visuals, gradient backgrounds, built-in
+typography boxes, and native vector shapes (pill buttons, badges, frames).
 """
 
 from __future__ import annotations
@@ -26,6 +30,24 @@ CANVA_KNOWLEDGE_BASE: dict[str, Any] = {
         "logo": "500x500 (1:1)",
         "business_card": "1050x600 (7:4 aspect)",
     },
+    "layout_styles": [
+        "Minimalist",
+        "Vibrant",
+        "Flat Vector",
+        "Photographic",
+        "Cyberpunk",
+        "Neon",
+        "Watercolor",
+        "Concept Art",
+        "Paper Cut",
+        "Retro Anime",
+        "3D Model",
+        "Corporate",
+        "Gradient Wash",
+        "Dark Mode",
+        "Editorial",
+    ],
+    # Legacy alias — kept so existing style-preset lookups still work.
     "magic_media_styles": [
         "Vibrant",
         "Minimalist",
@@ -38,6 +60,18 @@ CANVA_KNOWLEDGE_BASE: dict[str, Any] = {
         "Photographic",
         "Concept Art",
         "Neon",
+    ],
+    "stock_photo_keywords": [
+        "corporate office space",
+        "minimalist tech environment",
+        "modern coffee shop interior",
+        "abstract gradient background",
+        "soft bokeh texture",
+        "warm wood desk flat lay",
+        "clean white marble surface",
+        "tropical leaf shadow",
+        "urban concrete wall",
+        "pastel sky gradient",
     ],
     "canva_element_keywords": [
         "organic fluid shapes",
@@ -52,11 +86,46 @@ CANVA_KNOWLEDGE_BASE: dict[str, Any] = {
         "minimal line icons",
         "risograph print texture",
     ],
-    "target_tools": ["Canva Magic Media", "DALL-E 3", "Canva GPT", "Midjourney"],
+    "native_graphic_shapes": [
+        {"type": "pill_button", "use": "CTA button with rounded-full corners"},
+        {"type": "badge", "use": "small status/price/category tag"},
+        {"type": "frame", "use": "image placeholder with border-radius"},
+        {"type": "rectangle", "use": "solid colour block for text background"},
+        {"type": "circle", "use": "icon container or accent dot"},
+    ],
+    "native_typography": {
+        "headline_fonts": [
+            "Poppins Bold",
+            "Montserrat Bold",
+            "Playfair Display Bold",
+            "Bebas Neue",
+            "Oswald SemiBold",
+        ],
+        "body_fonts": [
+            "Montserrat Regular",
+            "Lato Regular",
+            "Inter Regular",
+            "Open Sans Light",
+            "Source Sans Pro Regular",
+        ],
+        "arrangements": [
+            "vertical stack, left-aligned",
+            "vertical stack, centered",
+            "two-column split",
+            "headline top, body bottom-right",
+        ],
+    },
+    "target_tools": [
+        "Canva Native Layout Engine",
+        "Canva Magic Media",
+        "DALL-E 3",
+        "Canva GPT",
+        "Midjourney",
+    ],
     "negative_space_rule": (
         "Always reserve deliberate empty negative space (top, bottom, or one "
         "side) so the user can overlay real, crisp typography in Canva without "
-        "the generated image's own detail clashing with the text."
+        "the background's own detail clashing with the text."
     ),
 }
 

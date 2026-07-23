@@ -3,9 +3,16 @@
 Takes the user's plain request, applies the Canva knowledge base, and emits
 a compact "technical design brief" that the Generator (also DeepSeek) turns
 into the final Canva card. This is the orchestrator's first step: detect
-the design category/dimensions and lock the art direction + negative
-constraints before any prompt text is written. Never chats, never asks a
-question back — makes the most Canva-sensible assumption and proceeds.
+the design category/dimensions and lock the layout composition (background,
+typography, graphic elements) + negative constraints before any card is
+produced. Never chats, never asks a question back — makes the most
+Canva-sensible assumption and proceeds.
+
+All references to Magic Media / AI image generation have been retired.
+The Architect now reasons in terms of the **Canva Native Layout Engine**:
+Canva stock photos / gradient backgrounds, built-in typography font boxes
+(Poppins, Montserrat, etc. in vertical stacks), and native vector shapes
+(pill buttons, badges, frames).
 
 When `style` is None or "none", the **Auto Style Injector** scans the
 user's prompt for keywords (planner, nightclub, cafe, retro, …) and
@@ -132,18 +139,28 @@ def auto_detect_style(text: str) -> dict[str, Any] | None:
 
 
 BRIEF_SCHEMA_HINT = {
-    "detected_category": "instagram_post",
-    "aspect_ratio": "1:1 (1080x1080)",
-    "target_tool": "Canva Magic Media",
-    "magic_media_style": "Minimalist",
+    "detected_category": "instagram_story",
+    "aspect_ratio": "9:16 (1080x1920)",
+    "target_tool": "Canva Native Layout Engine",
+    "layout_style": "Minimalist",
     "text_zone": "top",
-    "art_direction": {
-        "color_palette": ["#8B5E34", "#F5EFE6", "#D4A373"],
-        "lighting": "soft natural daylight",
-        "mood": "minimalist, vintage, artisanal",
+    "background": {
+        "type": "stock_photo",
+        "search_keywords": "modern coffee shop interior, warm morning light",
+        "fallback_gradient": {"angle": 135, "stops": ["#3A1C71", "#D76D77", "#FFAF7B"]},
     },
-    "canva_keywords": ["flat vector illustration", "isolated element on transparent background"],
-    "negative_constraints": "reserve empty negative space at the top for the headline/subtext layer; no embedded text, no clutter",
+    "typography": {
+        "headline_font": "Poppins Bold",
+        "body_font": "Montserrat Regular",
+        "arrangement": "vertical stack, left-aligned",
+        "color_palette": ["#FFFFFF", "#F5EFE6", "#D4A373"],
+    },
+    "graphic_elements": [
+        {"type": "pill_button", "label": "Sipariş Ver", "color": "#D4A373", "position": "bottom-center"},
+        {"type": "badge", "label": "%20 İndirim", "color": "#8B5E34", "position": "top-right"},
+    ],
+    "canva_keywords": ["vertical text stack", "full-bleed stock photo", "pill button CTA"],
+    "negative_constraints": "reserve negative space at top for headline/subtext; no AI-generated imagery; all visuals must be Canva stock library or native gradients",
     "selected_style_id": "warm-editorial-minimalist",
 }
 
@@ -159,9 +176,9 @@ def _style_selection_rule(style: dict[str, Any] | None) -> str:
         return (
             "\n9. selected_style_id — the slug of the ONE style preset (from the "
             "AVAILABLE STYLE PRESETS list above) whose best_for description best "
-            "matches the user's request spirit, use-case, and mood. The art_direction "
-            "you choose must be consistent with this preset's palette_hint and "
-            "recommended_magic_media_style."
+            "matches the user's request spirit, use-case, and mood. The background, "
+            "typography and graphic_elements you choose must be consistent with this "
+            "preset's palette_hint and recommended_layout_style."
         )
     return (
         "\n9. selected_style_id — set this to the slug of the active style "
@@ -180,7 +197,7 @@ def _system_prompt(
     if style is not None:
         style_section = (
             f"\n\n{style_prompt_block(style)}\n\nBecause a style preset is active: set "
-            "art_direction.mood, lighting and magic_media_style to align with this "
+            "background, typography and graphic_elements to align with this "
             "preset, and pick a color_palette consistent with its palette guidance."
         )
 
@@ -201,7 +218,7 @@ def _system_prompt(
         zone = brand.get("logo", {}).get("placement_zone", "")
         brand_section = (
             f"\n\n{brand_prompt_block(brand)}\n\n"
-            "10. Because a brand profile is active: art_direction.color_palette "
+            "10. Because a brand profile is active: typography.color_palette "
             "MUST be chosen only from this brand's approved_colors (do not "
             "invent new HEX values), and text_zone MUST avoid the brand's logo "
             f"placement_zone ('{zone}') so the headline/subtext never overlaps "
@@ -210,38 +227,55 @@ def _system_prompt(
 
     return (
         "Sen Canva Tasarim Mimarisin (Canva Design Architect), bir otomasyon "
-        "motorunun ilk asamasisin. Kullanicinin istegini analiz et ve Canva'nin "
-        "Magic Media / Canva GPT araclarinda en yuksek kalitede gorseli "
-        "verecek teknik parametreleri belirle.\n\n"
+        "motorunun ilk asamasisin. Kullanicinin istegini analiz et ve Canva "
+        "Native Layout Engine kullanarak native tipografi kutulari, stok "
+        "gorseller ve yerlesik vektor sekillerle en yuksek kalitede tasarimi "
+        "olusturacak teknik parametreleri belirle.\n\n"
         "HARD RULES:\n"
+        "- DO NOT use Magic Media or AI image generation. Generate layouts "
+        "using native Canva typography boxes, stock visuals, and native "
+        "elements (gradients, pill buttons, badges, frames, vector shapes).\n"
         "- Reply with a single JSON object and NOTHING else — no greeting, no "
         "prose, no markdown fences, no explanation, no question back to the "
         "user.\n"
         "- If the request is ambiguous, make the most Canva-sensible "
         "assumption yourself and proceed. Never ask for clarification.\n\n"
-        "CANVA KNOWLEDGE BASE (use these exact dimensions, styles and keywords):\n"
+        "CANVA KNOWLEDGE BASE (use these exact dimensions, layout_styles, "
+        "stock_photo_keywords, native_typography, and native_graphic_shapes):\n"
         f"{kb}"
         f"{auto_style_section}\n"
         "Your brief MUST include, at minimum:\n"
         "1. detected_category — one of the knowledge-base dimension keys.\n"
-        "2. aspect_ratio — the matching canvas size (e.g. '1:1 (1080x1080)').\n"
-        "3. target_tool — one of the knowledge-base target_tools.\n"
-        "4. magic_media_style — one of the knowledge-base magic_media_styles.\n"
+        "2. aspect_ratio — the matching canvas size (e.g. '9:16 (1080x1920)').\n"
+        "3. target_tool — MUST be 'Canva Native Layout Engine' (never Magic Media "
+        "or any AI image generator).\n"
+        "4. layout_style — one of the knowledge-base layout_styles.\n"
         "5. text_zone — exactly one of 'top', 'bottom', 'left', 'right', 'center': "
-        "where the headline/subtext will live. Pick this ONCE here — it is the "
-        "single source of truth the Generator must honor in both the image "
-        "prompt and the typography layer, so they never disagree about placement.\n"
-        "6. art_direction — {color_palette: 3-5 real HEX codes including at least "
-        "one near-black or near-white anchor so text stays legible, lighting, mood}. "
-        "Set lighting and mood with PRECISE professional design taxonomy, never "
-        "generic adjectives: name a concrete light quality (e.g. 'soft natural "
-        "morning window light', 'golden-hour rim light') and a specific "
-        "material/texture-aware mood (e.g. 'minimalist Scandinavian, warm oak and "
-        "matte porcelain') so the Generator can render it. When a brand profile is "
-        "active, align lighting/mood with the brand's visual_identity.\n"
-        "7. canva_keywords — 2-4 items drawn from canva_element_keywords.\n"
-        "8. negative_constraints — MUST enforce deliberate negative space at "
-        "text_zone's location and exclude embedded text."
+        "where the headline/subtext will live, dictating both background "
+        "composition and typography placement so they never disagree.\n"
+        "6. background — {type: 'stock_photo'|'gradient'|'solid', "
+        "search_keywords (if stock_photo): concrete Canva stock-library search "
+        "terms (e.g. 'corporate office space', 'minimalist tech environment'); "
+        "fallback_gradient (if gradient/solid): {angle, stops: [3-5 HEX codes]} }. "
+        "Always prefer stock_photo with search_keywords drawn from "
+        "stock_photo_keywords in the knowledge base. When gradient, use stops "
+        "that complement the typography color_palette.\n"
+        "7. typography — {headline_font (from native_typography.headline_fonts), "
+        "body_font (from native_typography.body_fonts), arrangement (from "
+        "native_typography.arrangements), color_palette: 3-5 HEX codes including "
+        "at least one near-white anchor so text stays legible}. All fonts MUST "
+        "be drawn from native_typography lists — these are Canva's built-in font "
+        "boxes that render crisply at any size. Arrangement specifies vertical "
+        "stack direction and alignment.\n"
+        "8. graphic_elements — a list of native Canva shapes to overlay: "
+        "each with {type (from native_graphic_shapes), label (short text), "
+        "color (HEX), position (e.g. 'bottom-center', 'top-right')}. "
+        "Include at least one pill_button (CTA) and one badge where appropriate. "
+        "These are Canva's built-in vector shapes — no AI generation needed.\n"
+        "9. canva_keywords — 2-4 items from canva_element_keywords or stock_photo_keywords.\n"
+        "10. negative_constraints — MUST enforce deliberate negative space at "
+        "text_zone's location, exclude AI-generated imagery, and specify that "
+        "all visuals are Canva stock library or native elements."
         f"{_style_selection_rule(style)}"
         f"{style_section}"
         f"{brand_section}\n\n"
