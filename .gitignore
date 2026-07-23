@@ -9,3 +9,4 @@ venv/
 .next/
 node_modules/
 backend.log
+backend2.log
