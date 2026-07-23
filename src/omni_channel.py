@@ -38,6 +38,37 @@ TARGET_FORMATS: dict[str, str] = {
     "instagram_post": CANVA_KNOWLEDGE_BASE["dimensions"]["instagram_post"],
     "instagram_story": CANVA_KNOWLEDGE_BASE["dimensions"]["instagram_story"],
     "banner": CANVA_KNOWLEDGE_BASE["dimensions"]["banner"],
+    # Brand Launch Kit assets
+    "logo_emblem": CANVA_KNOWLEDGE_BASE["dimensions"]["logo"],
+    "opening_poster": CANVA_KNOWLEDGE_BASE["dimensions"]["poster"],
+    "menu_list": CANVA_KNOWLEDGE_BASE["dimensions"]["flyer_a4"],
+    "packaging_merch": CANVA_KNOWLEDGE_BASE["dimensions"]["instagram_post"],
+}
+
+# Brand Launch Kit — 4 assets that share brand tokens (fonts, colors, visual
+# identity) but differ in aspect ratio and concept.  Generated automatically
+# when a brand profile is active in /api/chat.
+BRAND_KIT_ASSETS: dict[str, dict[str, str]] = {
+    "logo_emblem": {
+        "aspect_ratio": CANVA_KNOWLEDGE_BASE["dimensions"]["logo"],
+        "label": "🪧 Logo & Emblem",
+        "concept_override": "logo and emblem mark design",
+    },
+    "opening_poster": {
+        "aspect_ratio": CANVA_KNOWLEDGE_BASE["dimensions"]["poster"],
+        "label": "📣 Grand Opening Poster",
+        "concept_override": "grand opening event poster",
+    },
+    "menu_list": {
+        "aspect_ratio": CANVA_KNOWLEDGE_BASE["dimensions"]["flyer_a4"],
+        "label": "📜 Menu & Product List",
+        "concept_override": "menu and product listing",
+    },
+    "packaging_merch": {
+        "aspect_ratio": CANVA_KNOWLEDGE_BASE["dimensions"]["instagram_post"],
+        "label": "☕ Packaging & Merch",
+        "concept_override": "packaging and merchandise design",
+    },
 }
 
 # Reverse mapping: ratio short-form → format key.

@@ -92,6 +92,7 @@ export default function Home() {
             contrastRatio: payload.contrast_ratio,
             selectedStyleName: payload.selected_style_name ?? null,
             variants: payload.variants,
+            kitAssets: payload.kit_assets,
           },
         ]);
       }

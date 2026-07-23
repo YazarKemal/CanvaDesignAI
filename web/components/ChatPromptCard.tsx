@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import {
+  BRAND_KIT_ASSET_LABELS,
   formatForAspectRatio,
   TARGET_FORMAT_ASPECT_RATIOS,
+  type BrandKitAsset,
   type LogEntry,
   type PromptCard,
   type TargetFormat,
@@ -252,7 +254,15 @@ export function ChatPromptCard({
     );
   }
 
-  // Determine all available formats from primary + variants.
+  // --- Brand Launch Kit assets ---
+  const availableKitAssets: BrandKitAsset[] = entry.kitAssets
+    ? (Object.keys(entry.kitAssets) as BrandKitAsset[])
+    : [];
+  const [activeKit, setActiveKit] = useState<BrandKitAsset | null>(
+    availableKitAssets.length > 0 ? availableKitAssets[0] : null,
+  );
+
+  // --- Format variants ---
   const primaryFormat = entry.card ? formatForAspectRatio(entry.card.aspect_ratio) : null;
   const availableFormats: TargetFormat[] = [];
   if (primaryFormat) availableFormats.push(primaryFormat);
@@ -261,14 +271,26 @@ export function ChatPromptCard({
       if (!availableFormats.includes(fmt)) availableFormats.push(fmt);
     }
   }
-
   const [activeFormat, setActiveFormat] = useState<TargetFormat | null>(primaryFormat);
 
-  // Resolve card data from the active format (primary or variant).
-  const isVariant = activeFormat && activeFormat !== primaryFormat && entry.variants?.[activeFormat];
-  const activeCard: PromptCard = isVariant ? entry.variants![activeFormat!].card : entry.card!;
-  const activePasteText = isVariant ? entry.variants![activeFormat!].paste_text : entry.pasteText;
-  const activeContrastRatio = isVariant ? entry.variants![activeFormat!].contrast_ratio : entry.contrastRatio;
+  // Resolve the active card: kit asset > format variant > primary.
+  const isKit = activeKit && entry.kitAssets?.[activeKit];
+  const isVariant = !isKit && activeFormat && activeFormat !== primaryFormat && entry.variants?.[activeFormat];
+  const activeCard: PromptCard = isKit
+    ? entry.kitAssets![activeKit!].card
+    : isVariant
+      ? entry.variants![activeFormat!].card
+      : entry.card!;
+  const activePasteText = isKit
+    ? entry.kitAssets![activeKit!].paste_text
+    : isVariant
+      ? entry.variants![activeFormat!].paste_text
+      : entry.pasteText;
+  const activeContrastRatio = isKit
+    ? entry.kitAssets![activeKit!].contrast_ratio
+    : isVariant
+      ? entry.variants![activeFormat!].contrast_ratio
+      : entry.contrastRatio;
 
   const card = activeCard;
   const status =
@@ -290,11 +312,31 @@ export function ChatPromptCard({
         </p>
       )}
 
+      {/* Brand Kit Asset Tabs — Logo, Poster, Menu, Packaging */}
+      {availableKitAssets.length > 0 && (
+        <div className="mt-3 flex gap-1 border-b border-zinc-800">
+          {availableKitAssets.map((slug) => (
+            <button
+              key={slug}
+              type="button"
+              onClick={() => setActiveKit(slug)}
+              className={`px-3 py-1.5 text-xs transition-colors ${
+                slug === activeKit
+                  ? "border-b-2 border-white text-white -mb-[1px]"
+                  : "text-zinc-500 hover:text-zinc-300"
+              }`}
+            >
+              {BRAND_KIT_ASSET_LABELS[slug]}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Format Tabs — switch between Story / Post / Banner */}
       <FormatTabs
         formats={availableFormats}
-        activeFormat={activeFormat}
-        onSelect={setActiveFormat}
+        activeFormat={isKit ? null : activeFormat}
+        onSelect={(fmt) => { setActiveKit(null); setActiveFormat(fmt); }}
       />
 
       <CardBody

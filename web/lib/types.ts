@@ -12,6 +12,16 @@ export const TARGET_FORMAT_LABELS: Record<TargetFormat, string> = {
   banner: "banner",
 };
 
+// Brand Launch Kit asset types — generated automatically when a brand is active.
+export type BrandKitAsset = "logo_emblem" | "opening_poster" | "menu_list" | "packaging_merch";
+
+export const BRAND_KIT_ASSET_LABELS: Record<BrandKitAsset, string> = {
+  logo_emblem: "🪧 Logo",
+  opening_poster: "📣 Poster",
+  menu_list: "📜 Menu",
+  packaging_merch: "☕ Packaging",
+};
+
 // Mirrors src/canva_rules.py's CANVA_KNOWLEDGE_BASE["dimensions"] values,
 // used only to hide the "adapt to X" button for a card's own format.
 export const TARGET_FORMAT_ASPECT_RATIOS: Record<TargetFormat, string> = {
@@ -96,6 +106,7 @@ export interface ChatResponse {
   text_zone: TextZone;
   selected_style_name?: string | null;
   variants?: Record<string, AdaptVariant>;
+  kit_assets?: Record<string, AdaptVariant>;
 }
 
 // One entry in the terminal log: either a rendered card or an error line.
@@ -111,6 +122,7 @@ export interface LogEntry {
   sourceFormat?: TargetFormat;
   selectedStyleName?: string | null;
   variants?: Record<string, AdaptVariant>;
+  kitAssets?: Record<string, AdaptVariant>;
 }
 
 export interface Brand {

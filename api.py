@@ -28,6 +28,7 @@ from pydantic import BaseModel, Field
 from src.brand_profiles import BrandNotFoundError, list_brands, load_brand
 from src.color_science import best_contrast_pair
 from src.omni_channel import (
+    BRAND_KIT_ASSETS,
     TARGET_FORMATS,
     UnknownFormatError,
     detect_format_from_aspect_ratio,
@@ -72,6 +73,7 @@ class ChatResponse(BaseModel):
     text_zone: str
     selected_style_name: str | None = None
     variants: dict[str, AdaptVariant] | None = None
+    kit_assets: dict[str, AdaptVariant] | None = None
 
 
 class BrandSummary(BaseModel):
@@ -204,10 +206,13 @@ def chat(request: ChatRequest) -> ChatResponse:
     brand_profile = load_brand(request.brand) if request.brand else None
     style_preset = load_style(request.style) if request.style else None
 
+    # Only auto-adapt to the 3 social formats (not brand-kit assets).
+    SOCIAL_FORMATS = {"instagram_post", "instagram_story", "banner"}
+
     variants: dict[str, AdaptVariant] | None = None
     primary_format = detect_format_from_aspect_ratio(result.card.get("aspect_ratio", ""))
     if primary_format:
-        other_formats = [fmt for fmt in TARGET_FORMATS if fmt != primary_format]
+        other_formats = [fmt for fmt in SOCIAL_FORMATS if fmt != primary_format and fmt in TARGET_FORMATS]
         try:
             adapted_cards = generate_omni_channel_set(
                 result.card, other_formats,
@@ -227,6 +232,31 @@ def chat(request: ChatRequest) -> ChatResponse:
         except (UnknownFormatError, PromptValidationError):
             variants = None  # still return the primary card on adaptation failure
 
+    # -- Brand Launch Kit: when a brand is active, auto-generate 4
+    #    brand-consistent assets (Logo, Poster, Menu, Packaging) that
+    #    share the brand's color palette, fonts, and visual identity.
+    kit_assets: dict[str, AdaptVariant] | None = None
+    if brand_profile is not None and primary_format:
+        kit_formats = list(BRAND_KIT_ASSETS.keys())
+        try:
+            kit_cards = generate_omni_channel_set(
+                result.card, kit_formats,
+                brand=brand_profile, style=style_preset,
+            )
+            kit_assets = {}
+            for slug, kit_card in kit_cards.items():
+                k_legacy = kit_card.get("layer_typography_architecture", {})
+                k_native = kit_card.get("native_typography", {})
+                k_palette = k_native.get("color_palette", k_legacy.get("color_palette", []))
+                _, _, k_ratio = best_contrast_pair(k_palette)
+                kit_assets[slug] = AdaptVariant(
+                    card=kit_card,
+                    paste_text=render_for_assistant_paste(kit_card),
+                    contrast_ratio=round(k_ratio, 1),
+                )
+        except (UnknownFormatError, PromptValidationError):
+            kit_assets = None
+
     return ChatResponse(
         card=result.card,
         approved=result.approved,
@@ -237,6 +267,7 @@ def chat(request: ChatRequest) -> ChatResponse:
         text_zone=result.card["text_zone"],
         selected_style_name=selected_style_name,
         variants=variants,
+        kit_assets=kit_assets,
     )
 
 
