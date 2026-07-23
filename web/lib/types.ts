@@ -32,16 +32,43 @@ export interface LayerTypographyArchitecture {
   magic_media_style?: string;
 }
 
-export interface PromptCard {
-  concept: string;
+/** New hybrid split-layer raster payload (replaces flat magic_media_prompt). */
+export interface RasterBackground {
   magic_media_prompt: string;
   negative_prompt: string;
+  magic_media_style?: string;
+}
+
+/** New hybrid split-layer typography payload (replaces layer_typography_architecture). */
+export interface NativeTypography {
+  headline: string;
+  subtext: string;
+  color_palette: string[];
+  fonts: {
+    headline_font: string;
+    body_font: string;
+  };
+  alignment_zone: string;
+  magic_media_style?: string;
+}
+
+export interface PromptCard {
+  concept: string;
   aspect_ratio: string;
   target_tool: string;
   text_zone: TextZone;
-  layer_typography_architecture: LayerTypographyArchitecture;
   direct_action_tip: string[];
   canva_keywords?: string[];
+
+  // ── Legacy flat fields (kept optional for backward compat) ──
+  magic_media_prompt?: string;
+  negative_prompt?: string;
+  layer_typography_architecture?: LayerTypographyArchitecture;
+
+  // ── New hybrid split-layer fields (raster + vector + native) ──
+  raster_background?: RasterBackground;
+  vector_elements?: Record<string, unknown>;
+  native_typography?: NativeTypography;
 }
 
 export interface ChatResponse {

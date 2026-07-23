@@ -8,3 +8,4 @@ venv/
 # Next.js / frontend build artifacts
 .next/
 node_modules/
+backend.log

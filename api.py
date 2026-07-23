@@ -177,7 +177,13 @@ def chat(request: ChatRequest) -> ChatResponse:
     except Exception as exc:  # surface engine/LLM failures as 502s
         raise HTTPException(status_code=502, detail=f"Pipeline failed: {exc}") from exc
 
-    _a, _b, ratio = best_contrast_pair(result.card["layer_typography_architecture"]["color_palette"])
+    # Support both legacy (layer_typography_architecture) and hybrid
+    # (native_typography) card formats — _ensure_hybrid_format pops the
+    # legacy key during validation.
+    legacy_layer = result.card.get("layer_typography_architecture", {})
+    native = result.card.get("native_typography", {})
+    palette = native.get("color_palette", legacy_layer.get("color_palette", []))
+    _a, _b, ratio = best_contrast_pair(palette)
 
     # Resolve the selected style name (manual override or Architect auto-pick).
     selected_style_name: str | None = None
@@ -221,7 +227,10 @@ def adapt(request: AdaptRequest) -> AdaptResponse:
 
     response_variants = {}
     for fmt, variant_card in variants.items():
-        _a, _b, ratio = best_contrast_pair(variant_card["layer_typography_architecture"]["color_palette"])
+        legacy_layer = variant_card.get("layer_typography_architecture", {})
+        native = variant_card.get("native_typography", {})
+        palette = native.get("color_palette", legacy_layer.get("color_palette", []))
+        _a, _b, ratio = best_contrast_pair(palette)
         response_variants[fmt] = AdaptVariant(
             card=variant_card,
             paste_text=render_for_assistant_paste(variant_card),

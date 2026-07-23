@@ -125,6 +125,45 @@ function AdaptButtons({
   );
 }
 
+/** Resolve a value from the new hybrid format with a legacy fallback.
+ *  After _ensure_hybrid_format runs, legacy flat keys (magic_media_prompt,
+ *  layer_typography_architecture, etc.) are popped — so the canonical
+ *  source is raster_background / native_typography. */
+function resolveCardData(card: PromptCard) {
+  const raster = card.raster_background;
+  const native = card.native_typography;
+  const legacyLayer = card.layer_typography_architecture;
+
+  const magic_media_prompt =
+    raster?.magic_media_prompt ?? card.magic_media_prompt ?? "";
+  const negative_prompt =
+    raster?.negative_prompt ?? card.negative_prompt ?? "";
+  const magic_media_style =
+    raster?.magic_media_style ?? legacyLayer?.magic_media_style;
+
+  const headline = native?.headline ?? legacyLayer?.headline ?? "";
+  const subtext = native?.subtext ?? legacyLayer?.subtext ?? "";
+  const color_palette: string[] =
+    native?.color_palette ?? legacyLayer?.color_palette ?? [];
+  const fonts = native?.fonts ?? legacyLayer?.fonts ?? {
+    headline_font: "—",
+    body_font: "—",
+  };
+  const background_layers =
+    native?.alignment_zone ?? legacyLayer?.background_layers ?? "";
+
+  return {
+    magic_media_prompt,
+    negative_prompt,
+    magic_media_style,
+    headline,
+    subtext,
+    color_palette,
+    fonts,
+    background_layers,
+  };
+}
+
 function CardBody({
   card,
   pasteText,
@@ -138,14 +177,15 @@ function CardBody({
   onAdapt?: (format: TargetFormat) => void;
   adapting?: boolean;
 }) {
-  const layer = card.layer_typography_architecture;
+  const d = resolveCardData(card);
+  const tip = card.direct_action_tip ?? [];
 
   return (
     <>
       {/* Parameters — plain grayscale text, no colored badges */}
       <p className="mt-1 text-xs text-zinc-500">
         # {card.aspect_ratio} · {card.target_tool} · zone: {card.text_zone}
-        {layer?.magic_media_style ? ` · ${layer.magic_media_style}` : ""}
+        {d.magic_media_style ? ` · ${d.magic_media_style}` : ""}
       </p>
 
       {/* Composition wireframe — monochrome, shows where text_zone sits */}
@@ -157,33 +197,33 @@ function CardBody({
       <p className="mt-3 text-xs text-zinc-600">01 // magic media prompt</p>
       <div className="relative mt-1 border border-zinc-800 bg-zinc-950 p-3 pr-16">
         <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-300">
-          {card.magic_media_prompt}
+          {d.magic_media_prompt}
         </p>
-        <CopyButton text={card.magic_media_prompt} />
+        <CopyButton text={d.magic_media_prompt} />
       </div>
-      <p className="mt-1 text-xs text-zinc-600">neg: {card.negative_prompt}</p>
+      <p className="mt-1 text-xs text-zinc-600">neg: {d.negative_prompt}</p>
 
       {/* 2. Layer & typography architecture */}
       <p className="mt-3 text-xs text-zinc-600">02 // layer &amp; typography architecture</p>
       <div className="mt-1 space-y-1 border border-zinc-800 bg-zinc-950 p-3 text-xs text-zinc-400">
         <p>
-          headline: <span className="text-zinc-200">{layer.headline}</span>
+          headline: <span className="text-zinc-200">{d.headline}</span>
         </p>
         <p>
-          subtext: <span className="text-zinc-200">{layer.subtext}</span>
+          subtext: <span className="text-zinc-200">{d.subtext}</span>
         </p>
-        <p>palette: {layer.color_palette.join(" · ")}</p>
+        <p>palette: {d.color_palette.join(" · ")}</p>
         <ContrastLine ratio={contrastRatio} />
         <p>
-          fonts: {layer.fonts.headline_font} / {layer.fonts.body_font}
+          fonts: {d.fonts.headline_font} / {d.fonts.body_font}
         </p>
-        <p>layers: {layer.background_layers}</p>
+        <p>layers: {d.background_layers}</p>
       </div>
 
       {/* 3. Direct action tip — step by step */}
       <p className="mt-3 text-xs text-zinc-600">03 // direct action tip</p>
       <ol className="mt-1 space-y-1 border border-zinc-800 bg-zinc-950 p-3 text-xs text-zinc-400">
-        {card.direct_action_tip.map((step, i) => (
+        {tip.map((step, i) => (
           <li key={i}>
             {i + 1}. {step}
           </li>
