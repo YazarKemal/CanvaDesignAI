@@ -56,15 +56,22 @@ BRAND_KIT_ASSETS: dict[str, dict[str, str]] = {
         "layout_directive": (
             "LOGO & EMBLEM LAYOUT RULES (strict):\n"
             "- NO CTA buttons, NO promotional badges, NO discount labels.\n"
+            "- Layer 1 (raster_background): solid matte background colour from the "
+            "brand palette OR a subtle uncoated-paper texture. Use 'minimalist "
+            "line-art emblem' or 'fine engraving' style — NEVER 'flat vector "
+            "illustration'. negative_prompt MUST include 'no gibberish text, "
+            "no embedded letters, no fake words, no stock vector clip-art'.\n"
             "- Layer 2 (vector_elements): a single centered vector emblem/icon "
             "drawn from the brand's visual identity (coffee cup, leaf, geometric "
-            "monogram). No pill_button, no badge.\n"
-            "- Layer 3 (native_typography): brand name as headline (Poppins Bold "
-            "or the brand's signature headline font), centered below the emblem. "
-            "Subtext: 'Est. 2026' in the brand's body font, small and centered.\n"
+            "monogram). Rendered as a clean line-art glyph or fine engraving mark. "
+            "No pill_button, no badge.\n"
+            "- Layer 3 (native_typography): brand name as headline, centered below "
+            "the emblem. SUBTEXT IS STRICTLY LIMITED to 'EST. 2026' or a 2-3 word "
+            "tagline (e.g. 'Artisanal Coffee'). NO paragraphs, NO sentences, "
+            "NO descriptions in the subtext field — it is an identity mark, not a "
+            "brochure. micro_tags: 'VOL.01 / 2026', 'BRAND IDENTITY', the origin.\n"
             "- alignment_zone: center of canvas, vertical stack.\n"
-            "- Palette: use ONLY the brand's approved_colors.\n"
-            "- Keep it minimal — this is an identity mark, not a promotional graphic."
+            "- Palette: use ONLY the brand's approved_colors."
         ),
     },
     "opening_poster": {
@@ -74,6 +81,11 @@ BRAND_KIT_ASSETS: dict[str, dict[str, str]] = {
         "layout_directive": (
             "GRAND OPENING POSTER LAYOUT RULES (strict):\n"
             "- NO 'Order Now' CTA, NO discount badge. This is an editorial event poster.\n"
+            "- Layer 1 (raster_background): 'high-end editorial studio photography' "
+            "style — rich depth, shallow DOF, dramatic lighting. Search Canva Stock "
+            "Library for editorial interior/food/flatlay photos. NEVER 'flat vector "
+            "illustration'. negative_prompt MUST include 'no gibberish text, no "
+            "embedded letters, no fake words, no stock vector clip-art'.\n"
             "- Layer 2 (vector_elements): three info blocks arranged in a clean grid:\n"
             "  1. 'GRAND OPENING' — large, bold, the hero element.\n"
             "  2. 'Date' block — show a date placeholder like 'SAT / 15.08.26' in "
@@ -81,7 +93,7 @@ BRAND_KIT_ASSETS: dict[str, dict[str, str]] = {
             "  3. 'Location' block — '123 Brew Lane, Portland' in the brand's body "
             "font, small and refined.\n"
             "- Layer 3 (native_typography): headline is the event title; subtext is "
-            "a one-line tagline. alignment_zone: top or center-left.\n"
+            "a one-line tagline (max 6 words). alignment_zone: top or center-left.\n"
             "- Visual style: editorial magazine poster — generous whitespace, "
             "strong typographic hierarchy, one accent color from the brand palette "
             "for the date/location blocks."
@@ -94,10 +106,21 @@ BRAND_KIT_ASSETS: dict[str, dict[str, str]] = {
         "layout_directive": (
             "MENU & PRODUCT LIST LAYOUT RULES (strict):\n"
             "- NO CTA button, NO discount badge. This is a product catalogue.\n"
-            "- Layer 2 (vector_elements): subtle divider lines between categories. "
-            "No pill_button, no badge.\n"
-            "- Layer 3 (native_typography): headline is the menu title. "
-            "Subtext is a brief description (e.g. 'Handcrafted daily').\n"
+            "- Layer 1 (raster_background): a SOFT TEXTURED BACKGROUND only — matte "
+            "uncoated paper, warm linen, or subtle grain texture in a brand-approved "
+            "neutral colour. Do NOT describe any foreground objects, food items, "
+            "products, illustrations, or photography in the background — the image "
+            "must be a CLEAN, EMPTY canvas with ZERO visual clutter. The top 20% and "
+            "bottom 15% must be completely empty negative space (no texture variation, "
+            "no vignette, no gradient fade — pure solid/lightly-textured zone). "
+            "NEVER 'flat vector illustration'. negative_prompt MUST include 'no "
+            "gibberish text, no embedded letters, no fake words, no stock vector "
+            "clip-art, no food photography, no product images, no illustrated items'.\n"
+            "- Layer 2 (vector_elements): subtle divider lines between categories "
+            "(thin horizontal rules at 0.5 px in a muted brand color). No pill_button, "
+            "no badge.\n"
+            "- Layer 3 (native_typography): headline is the menu title. Subtext is "
+            "a brief descriptor (max 4 words, e.g. 'Handcrafted Daily').\n"
             "- direct_action_tip steps MUST describe a PRICED MENU LAYOUT:\n"
             "  1. Category headers: 'ESPRESSO', 'BREWS', 'PASTRIES' in the brand's "
             "headline font, separated by thin horizontal rule lines.\n"
@@ -114,23 +137,31 @@ BRAND_KIT_ASSETS: dict[str, dict[str, str]] = {
         "concept_override": "packaging and merchandise design",
         "layout_directive": (
             "PACKAGING & MERCH LAYOUT RULES (strict):\n"
-            "- This is a CUP SLEEVE / LABEL / STICKER print template — minimal, "
-            "repeatable, brand-forward.\n"
-            "- Layer 2 (vector_elements): a REPEATING PATTERN of the brand's emblem "
-            "or a simple geometric motif (circles, lines, dots) in one of the "
-            "brand's approved_colors at low opacity. No CTA, no badge, no button.\n"
+            "- This is a BOX DIE-CUT PACKAGING SLEEVE / REPEATING BRAND PATTERN "
+            "GRID template — NOT a poster, NOT a social media graphic, NOT an "
+            "advertisement.\n"
+            "- Layer 1 (raster_background): a REPEATING SEAMLESS PATTERN of the "
+            "brand's emblem or geometric motif in one brand-approved color at 8-12% "
+            "opacity on a matte uncoated paper or kraft-paper-toned background. "
+            "Describe it as 'seamless repeating brand pattern grid' or 'die-cut "
+            "packaging sleeve template'. NEVER 'flat vector illustration', NEVER "
+            "'editorial photography', NEVER scene descriptions. negative_prompt "
+            "MUST include 'no gibberish text, no embedded letters, no fake words, "
+            "no stock vector clip-art, no poster layout, no social media template'.\n"
+            "- Layer 2 (vector_elements): a repeating geometric pattern OR a single "
+            "centered die-cut outline frame. No CTA, no badge, no button. Use Canva's "
+            "built-in grid/repeat or frame shapes.\n"
             "- Layer 3 (native_typography): headline is the brand name (centered, "
-            "prominent). Subtext is a short tagline or 'small-batch · handcrafted' "
-            "style descriptor. alignment_zone: center.\n"
-            "- direct_action_tip steps MUST describe a PRINT-READY layout:\n"
+            "prominent). Subtext is STRICTLY limited to a 2-3 word descriptor "
+            "('small-batch · handcrafted') or 'EST. 2026'. alignment_zone: center.\n"
+            "- direct_action_tip steps MUST describe a PRINT-READY template:\n"
             "  1. Set up a square canvas at 1080x1080 px.\n"
-            "  2. Add the brand emblem/logo centered at the top 30% of the canvas.\n"
-            "  3. Add the brand name in the headline font, centered below the emblem.\n"
-            "  4. Add a repeating background pattern using the brand's secondary "
-            "color at 8-12% opacity — circles, dots, or the brand motif.\n"
-            "  5. Add footer text: brand website or 'est. 2026' in small body font.\n"
-            "- The result should look like a coffee cup sleeve or product label — "
-            "clean, tactile, ready for print."
+            "  2. Create a repeating pattern grid using the brand's emblem/motif.\n"
+            "  3. Add a centered die-cut frame or sleeve outline.\n"
+            "  4. Place brand name centered in the frame.\n"
+            "  5. Add footer: brand website or 'est. 2026' in small body font.\n"
+            "- The result must look like a physical coffee cup sleeve or product "
+            "label — tactile, minimal, ready for print production."
         ),
     },
 }
@@ -191,24 +222,23 @@ def _system_prompt(
         "in your reply.\n"
         "- vector_elements MAY be rewritten if a layout_directive is given above "
         "(the directive may add/remove specific vector shapes).\n"
-        "- Output these keys (omit vector_elements if unchanged):\n"
-        "  1. text_zone — one of 'top'/'bottom'/'left'/'right'/'center', "
-        "chosen using the FORMAT-SPECIFIC COMPOSITION rules above for what best "
-        "suits THIS aspect ratio.\n"
-        "  2. magic_media_prompt — rewrite ONLY the composition/framing for "
-        "the new aspect ratio per the composition rules above, keeping the same "
-        "subject, medium, mood, color palette, and any elite style keywords. "
-        "MUST reserve negative space per the chosen text_zone.\n"
-        "  3. background_layers — how the image and typography layers stack "
-        "for this format; MUST mention the same text_zone location.\n"
-        "  4. vector_elements (OPTIONAL) — only include if the layout directive "
-        "requires different vector shapes (e.g. remove CTA/badge, add info "
-        "blocks, add repeating pattern). Each key maps to a single concrete "
-        "Canva shape instruction string.\n"
-        "  5. direct_action_tip — an ordered array of 2-5 concrete Canva steps "
-        "for assembling THIS format specifically (mentioning the aspect ratio).\n\n"
+        "- subtext_override MAY be provided if the layout directive specifies a "
+        "different subtext (e.g. 'EST. 2026' for logos, or a shorter tagline).\n"
+        "- negative_prompt_boost — additional exclusion terms to APPEND to the "
+        "base negative_prompt (e.g. 'no gibberish text, no fake words').\n"
+        "- Output these keys (omit optional ones if unchanged):\n"
+        "  1. text_zone\n"
+        "  2. magic_media_prompt\n"
+        "  3. background_layers\n"
+        "  4. vector_elements (OPTIONAL)\n"
+        "  5. subtext_override (OPTIONAL) — new subtext string if the layout "
+        "directive requires a shorter/different one\n"
+        "  6. negative_prompt_boost (OPTIONAL) — extra exclusion terms to append\n"
+        "  7. direct_action_tip\n\n"
         'Respond with raw JSON only, e.g.: {"text_zone": "top", '
         '"magic_media_prompt": "...", "background_layers": "...", '
+        '"subtext_override": "EST. 2026", '
+        '"negative_prompt_boost": "no gibberish text, no fake words", '
         '"direct_action_tip": ["...", "..."]}'
     )
 
@@ -266,6 +296,18 @@ def _merge_variant(base_card: dict[str, Any], target_format: str, adapted: dict[
     # Override vector_elements if the adaptation provides new ones.
     if "vector_elements" in adapted and isinstance(adapted["vector_elements"], dict):
         card["vector_elements"] = adapted["vector_elements"]
+    # Override subtext if the adaptation provides one (e.g. logo → 'EST. 2026').
+    if adapted.get("subtext_override") and isinstance(adapted["subtext_override"], str):
+        card.setdefault("native_typography", {})
+        card["native_typography"]["subtext"] = adapted["subtext_override"]
+    # Append extra negative_prompt terms if the adaptation provides them.
+    if adapted.get("negative_prompt_boost") and isinstance(adapted["negative_prompt_boost"], str):
+        card.setdefault("raster_background", {})
+        existing = card["raster_background"].get("negative_prompt", "")
+        card["raster_background"]["negative_prompt"] = (
+            f"{existing}, {adapted['negative_prompt_boost']}"
+            if existing else adapted["negative_prompt_boost"]
+        )
     return card
 
 
