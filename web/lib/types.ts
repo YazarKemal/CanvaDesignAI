@@ -20,6 +20,21 @@ export const TARGET_FORMAT_ASPECT_RATIOS: Record<TargetFormat, string> = {
   banner: "1920x1080 (16:9)",
 };
 
+/** Map a ratio string (any order — "1:1 (1080x1080)" or "1080x1080 (1:1)")
+ *  to its TargetFormat. Returns null when the ratio doesn't match. */
+export function formatForAspectRatio(aspectRatio: string): TargetFormat | null {
+  // Normalise: extract the ratio portion (e.g. "1:1", "9:16", "16:9")
+  const ratioMatch = aspectRatio.match(/(\d+:\d+)/);
+  if (!ratioMatch) return null;
+  const ratio = ratioMatch[1];
+  const map: Record<string, TargetFormat> = {
+    "1:1": "instagram_post",
+    "9:16": "instagram_story",
+    "16:9": "banner",
+  };
+  return map[ratio] ?? null;
+}
+
 export interface LayerTypographyArchitecture {
   headline: string;
   subtext: string;

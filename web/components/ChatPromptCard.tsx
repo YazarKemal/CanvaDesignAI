@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import {
-  TARGET_FORMAT_ASPECT_RATIOS,
+  formatForAspectRatio,
   TARGET_FORMAT_LABELS,
   type LogEntry,
   type PromptCard,
@@ -102,8 +102,10 @@ function AdaptButtons({
 }) {
   if (!onAdapt) return null;
 
+  const activeFormat = formatForAspectRatio(card.aspect_ratio);
+
   const otherFormats = (Object.keys(TARGET_FORMAT_LABELS) as TargetFormat[]).filter(
-    (fmt) => TARGET_FORMAT_ASPECT_RATIOS[fmt] !== card.aspect_ratio,
+    (fmt) => fmt !== activeFormat,
   );
   if (otherFormats.length === 0) return null;
 
