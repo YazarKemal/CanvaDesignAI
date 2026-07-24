@@ -1,16 +1,25 @@
 """Tests for src/canva_adapter.py — Canva Brand Template Autofill adapter."""
 
+import csv
+import io
+import json
+import tempfile
+from pathlib import Path
+
 import pytest
 
 from src.canva_adapter import (
     DEFAULT_TEMPLATE_FIELDS,
     TEMPLATE_REGISTRY,
     FIELD_BADGE_TEXT,
+    FIELD_BACKGROUND_IMAGE,
     FIELD_HEADLINE,
     FIELD_SUBTEXT,
     FIELD_CTA_TEXT,
-    FIELD_BACKGROUND_IMAGE,
     as_canva_autofill_payload,
+    as_csv_string,
+    export_payload_as_csv,
+    export_payload_as_json,
     resolve_template_id,
     upload_background_asset,
     validate_payload,
@@ -326,3 +335,224 @@ class TestRoundTrip:
         assert len(data) == 8
         for f in DEFAULT_TEMPLATE_FIELDS:
             assert f in data, f"Expected {f} in payload data"
+
+
+# ---------------------------------------------------------------------------
+# as_csv_string
+# ---------------------------------------------------------------------------
+
+class TestAsCsvString:
+    def test_produces_valid_csv_with_header_and_one_data_row(self, minimal_card: dict):
+        csv_text = as_csv_string(minimal_card, "tpl_test123")
+        reader = csv.reader(io.StringIO(csv_text))
+        rows = list(reader)
+        assert len(rows) == 2  # header + 1 data row
+        assert rows[0] == rows[0]  # header is not empty
+        assert len(rows[0]) > 0
+
+    def test_header_row_contains_text_field_names(self, minimal_card: dict):
+        csv_text = as_csv_string(minimal_card, "tpl_test123")
+        reader = csv.reader(io.StringIO(csv_text))
+        header = next(reader)
+        assert FIELD_HEADLINE in header
+        assert FIELD_SUBTEXT in header
+        assert FIELD_CTA_TEXT in header
+
+    def test_data_row_contains_text_values(self, minimal_card: dict):
+        csv_text = as_csv_string(minimal_card, "tpl_test123")
+        reader = csv.reader(io.StringIO(csv_text))
+        next(reader)  # skip header
+        data_row = next(reader)
+        # Find the headline column positionally or by value
+        flat = " ".join(data_row)
+        assert "Grand Opening" in flat
+        assert "Freshly roasted, every morning." in flat
+
+    def test_background_image_excluded_from_csv(self, minimal_card: dict):
+        """BackgroundImage MUST NOT appear in CSV — Bulk Create can't use it."""
+        csv_text = as_csv_string(minimal_card, "tpl_test123")
+        reader = csv.reader(io.StringIO(csv_text))
+        header = next(reader)
+        assert FIELD_BACKGROUND_IMAGE not in header
+
+    def test_background_image_excluded_even_when_asset_id_given(self, minimal_card: dict):
+        """Even if we have a background_asset_id, it must still be excluded."""
+        payload = as_canva_autofill_payload(
+            minimal_card, "tpl_test123", background_asset_id="Msd123"
+        )
+        # Payload has it, but CSV must drop it
+        assert FIELD_BACKGROUND_IMAGE in payload["data"]
+        csv_text = as_csv_string(minimal_card, "tpl_test123")
+        assert FIELD_BACKGROUND_IMAGE not in csv_text
+
+    def test_proper_quoting_for_commas_in_text(self, minimal_card: dict):
+        """Subtext with commas must be properly quoted."""
+        minimal_card["native_typography"]["subtext"] = "Fresh, roasted, every morning."
+        csv_text = as_csv_string(minimal_card, "tpl_test123")
+        # The entire field should be quoted, protecting the commas
+        assert '"Fresh, roasted, every morning."' in csv_text
+
+    def test_proper_quoting_for_quotes_in_text(self, minimal_card: dict):
+        """Double-quotes inside fields must be escaped per RFC 4180."""
+        minimal_card["native_typography"]["headline"] = 'The "Best" Coffee'
+        csv_text = as_csv_string(minimal_card, "tpl_test123")
+        # csv.QUOTE_ALL will double the internal quotes
+        assert 'The ""Best"" Coffee' in csv_text
+
+    def test_template_fields_filters_csv_columns(self, minimal_card: dict):
+        """template_fields filtering must work for CSV too."""
+        csv_text = as_csv_string(
+            minimal_card,
+            "tpl_test123",
+            template_fields=[FIELD_HEADLINE, FIELD_SUBTEXT],
+        )
+        reader = csv.reader(io.StringIO(csv_text))
+        header = next(reader)
+        assert set(header) == {FIELD_HEADLINE, FIELD_SUBTEXT}
+        assert FIELD_CTA_TEXT not in header
+
+    def test_empty_template_fields_produces_empty_csv(self, minimal_card: dict):
+        """When template_fields is an empty list, no text fields survive
+        filtering, so CSV output should be empty (no header, no row)."""
+        csv_text = as_csv_string(
+            minimal_card, "tpl_test123", template_fields=[]
+        )
+        # csv.writerow([]) produces only newlines, which rstrip removes.
+        assert csv_text == ""
+
+    def test_optional_fields_omitted_when_not_in_card(self, card_no_optionals: dict):
+        csv_text = as_csv_string(card_no_optionals, "tpl_test123")
+        reader = csv.reader(io.StringIO(csv_text))
+        header = next(reader)
+        assert FIELD_HEADLINE in header
+        assert FIELD_SUBTEXT in header
+        assert FIELD_CTA_TEXT not in header  # no cta_button in card
+
+    def test_csv_column_order_matches_template_fields(self, minimal_card: dict):
+        """When template_fields is given, CSV columns should match its order.
+        All three fields (Subtext, Headline, OriginLine) are present in the
+        minimal_card via native_typography.micro_tags.origin_line."""
+        order = ["Subtext", "Headline", "OriginLine"]
+        csv_text = as_csv_string(
+            minimal_card,
+            "tpl_test123",
+            template_fields=order,
+        )
+        reader = csv.reader(io.StringIO(csv_text))
+        header = next(reader)
+        # OriginLine IS present in the card (via micro_tags)
+        assert header == ["Subtext", "Headline", "OriginLine"]
+
+    def test_csv_does_not_contain_image_type_fields(self, minimal_card: dict):
+        """Sanity check: no 'type':'image' field names leak into CSV."""
+        csv_text = as_csv_string(minimal_card, "tpl_test123")
+        # BackgroundImage must be absent
+        assert "BackgroundImage" not in csv_text
+        # No type metadata should appear
+        assert '"type"' not in csv_text
+
+
+# ---------------------------------------------------------------------------
+# export_payload_as_csv (disk I/O)
+# ---------------------------------------------------------------------------
+
+class TestExportPayloadAsCsv:
+    def test_writes_csv_file_to_disk(self, minimal_card: dict):
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".csv", delete=False
+        ) as f:
+            f.close()
+            try:
+                path = export_payload_as_csv(minimal_card, "tpl_test123", f.name)
+                assert path.exists()
+                content = path.read_text(encoding="utf-8")
+                assert FIELD_HEADLINE in content
+                assert "Grand Opening" in content
+            finally:
+                Path(f.name).unlink(missing_ok=True)
+
+    def test_file_has_trailing_newline(self, minimal_card: dict):
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".csv", delete=False
+        ) as f:
+            f.close()
+            try:
+                path = export_payload_as_csv(minimal_card, "tpl_test123", f.name)
+                content = path.read_text(encoding="utf-8")
+                assert content.endswith("\n")
+            finally:
+                Path(f.name).unlink(missing_ok=True)
+
+
+# ---------------------------------------------------------------------------
+# export_payload_as_json (Plan A readiness)
+# ---------------------------------------------------------------------------
+
+class TestExportPayloadAsJson:
+    def test_writes_valid_json_file_to_disk(self, minimal_card: dict):
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False
+        ) as f:
+            f.close()
+            try:
+                path = export_payload_as_json(minimal_card, "tpl_test123", f.name)
+                assert path.exists()
+                content = path.read_text(encoding="utf-8")
+                payload = json.loads(content)
+                assert payload["brand_template_id"] == "tpl_test123"
+                assert "data" in payload
+                assert "title" in payload
+            finally:
+                Path(f.name).unlink(missing_ok=True)
+
+    def test_json_includes_background_image_when_asset_id_given(self, minimal_card: dict):
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False
+        ) as f:
+            f.close()
+            try:
+                path = export_payload_as_json(
+                    minimal_card,
+                    "tpl_test123",
+                    f.name,
+                    background_asset_id="Msd59349ff",
+                )
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                assert FIELD_BACKGROUND_IMAGE in payload["data"]
+                assert payload["data"][FIELD_BACKGROUND_IMAGE]["asset_id"] == "Msd59349ff"
+            finally:
+                Path(f.name).unlink(missing_ok=True)
+
+    def test_json_payload_passes_validation(self, minimal_card: dict):
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False
+        ) as f:
+            f.close()
+            try:
+                path = export_payload_as_json(
+                    minimal_card,
+                    "tpl_test123",
+                    f.name,
+                    background_asset_id="Msd59349ff",
+                )
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                validate_payload(payload)
+            finally:
+                Path(f.name).unlink(missing_ok=True)
+
+    def test_json_respects_template_fields(self, minimal_card: dict):
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False
+        ) as f:
+            f.close()
+            try:
+                path = export_payload_as_json(
+                    minimal_card,
+                    "tpl_test123",
+                    f.name,
+                    template_fields=[FIELD_HEADLINE],
+                )
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                assert list(payload["data"].keys()) == [FIELD_HEADLINE]
+            finally:
+                Path(f.name).unlink(missing_ok=True)

@@ -32,9 +32,16 @@ Design decisions (v1)
 
 from __future__ import annotations
 
+import csv
+import io
+import json
+import logging
 import re
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Future: style_id → brand_template_id registry
@@ -351,3 +358,220 @@ def validate_payload(payload: dict[str, Any]) -> None:
             raise ValueError(
                 f"payload.title is {len(title)} chars (max 255)"
             )
+
+
+# ---------------------------------------------------------------------------
+# CSV export — Canva Bulk Create compatible format
+# ---------------------------------------------------------------------------
+
+# Fields that are deliberately excluded from CSV output because Bulk Create
+# cannot accept them as data columns:
+#   - FIELD_BACKGROUND_IMAGE: image columns in Bulk Create only accept
+#     pre-uploaded Canva media embedded in XLSX cells, NOT URLs or asset_ids.
+#     The user must upload the background manually and connect it in the editor.
+_CSV_EXCLUDED_FIELDS: frozenset[str] = frozenset({FIELD_BACKGROUND_IMAGE})
+
+_BACKGROUND_IMAGE_GUIDANCE = (
+    "BackgroundImage field was excluded from CSV output. "
+    "Canva Bulk Create does not accept image URLs or asset_ids in CSV columns. "
+    "To use the background: (1) generate the image using the magic_media_prompt "
+    "from the CaVDesign card, (2) upload it manually to Canva's Media Library, "
+    "(3) in Bulk Create, connect the image column to the uploaded asset by "
+    "dragging the image file into the column cell."
+)
+
+
+def _text_fields_from_payload(
+    payload: dict[str, Any],
+) -> dict[str, str]:
+    """Extract only text-type fields from an autofill payload's ``data`` dict.
+
+    Image/chart/sheet fields are silently skipped — CSV columns can only hold
+    text values (Bulk Create limitation).
+    """
+    text_fields: dict[str, str] = {}
+    data = payload.get("data", {})
+    for field_name, value in data.items():
+        if not isinstance(value, dict):
+            continue
+        if value.get("type") != "text":
+            continue
+        text = value.get("text", "")
+        if text:
+            text_fields[field_name] = text
+    return text_fields
+
+
+def _csv_ordered_fields(
+    text_fields: dict[str, str],
+    template_fields: list[str] | None,
+) -> list[str]:
+    """Return the ordered list of field names for CSV columns.
+
+    If *template_fields* was provided, fields are ordered to match that list
+    (so the CSV column order matches the template's declared fields).  Extra
+    text fields not in the template go last, sorted alphabetically.
+
+    When *template_fields* is None, fields are sorted alphabetically for
+    deterministic output.
+    """
+    if template_fields is not None:
+        # Preserve template ordering; append any extras ABC-sorted.
+        ordered = [f for f in template_fields if f in text_fields]
+        extras = sorted(set(text_fields) - set(template_fields))
+        return ordered + extras
+    return sorted(text_fields)
+
+
+def as_csv_string(
+    card: dict[str, Any],
+    brand_template_id: str,
+    *,
+    template_fields: list[str] | None = None,
+    title: str | None = None,
+) -> str:
+    """Convert a CaVDesign card into a single-row CSV string for Canva Bulk Create.
+
+    Only **text** fields are included — image fields (e.g. ``BackgroundImage``)
+    are deliberately excluded because Bulk Create cannot import them via CSV.
+    A ``logging.WARNING`` is emitted so the caller knows the background image
+    was dropped.
+
+    Parameters
+    ----------
+    card:
+        A validated CaVDesign card dict.
+    brand_template_id:
+        **Mandatory.** The Canva Brand Template ID.
+    template_fields:
+        Optional allow-list of template field names (same semantics as
+        :func:`as_canva_autofill_payload`).  Only text fields present in this
+        list will appear as CSV columns.
+    title:
+        Optional design title.  Not included in the CSV itself (Bulk Create
+        names designs differently), but used to set the payload title.
+
+    Returns
+    -------
+    str
+        A CSV string with one header row + one data row, e.g.::
+
+            Headline,Subtext,CTA_Text
+            "Grand Opening","Freshly roasted, every morning.","SHOP NOW"
+    """
+    # Build the full autofill payload first so we get the same filtering.
+    payload = as_canva_autofill_payload(
+        card,
+        brand_template_id,
+        template_fields=template_fields,
+        title=title,
+    )
+
+    # Warn about excluded image fields.
+    for field_name in _CSV_EXCLUDED_FIELDS:
+        if field_name in payload.get("data", {}):
+            logger.warning(
+                "%s — %s",
+                field_name,
+                _BACKGROUND_IMAGE_GUIDANCE,
+            )
+
+    text_fields = _text_fields_from_payload(payload)
+    ordered = _csv_ordered_fields(text_fields, template_fields)
+
+    buf = io.StringIO()
+    writer = csv.writer(buf, quoting=csv.QUOTE_ALL)
+    writer.writerow(ordered)
+    row = [text_fields.get(f, "") for f in ordered]
+    writer.writerow(row)
+
+    return buf.getvalue().rstrip("\r\n")
+
+
+def export_payload_as_csv(
+    card: dict[str, Any],
+    brand_template_id: str,
+    path: str | Path,
+    *,
+    template_fields: list[str] | None = None,
+    title: str | None = None,
+) -> Path:
+    """Write a Canva Bulk Create CSV file to disk.
+
+    Convenience wrapper around :func:`as_csv_string` that writes the result
+    to *path*.  Returns the resolved ``Path`` of the written file.
+
+    Returns
+    -------
+    Path
+        The path the CSV was written to.
+    """
+    csv_text = as_csv_string(
+        card,
+        brand_template_id,
+        template_fields=template_fields,
+        title=title,
+    )
+    out = Path(path)
+    out.write_text(csv_text + "\n", encoding="utf-8")
+    return out.resolve()
+
+
+# ---------------------------------------------------------------------------
+# JSON export — reference / debug / Plan A readiness
+# ---------------------------------------------------------------------------
+
+def export_payload_as_json(
+    card: dict[str, Any],
+    brand_template_id: str,
+    path: str | Path,
+    *,
+    template_fields: list[str] | None = None,
+    title: str | None = None,
+    background_asset_id: str | None = None,
+    indent: int = 2,
+) -> Path:
+    """Write the full Canva Autofill JSON payload to disk.
+
+    This is the **Plan A** export — the same payload that would be sent to
+    ``POST /rest/v1/autofills`` when the Canva Connect API is available.
+    Use it for debugging, manual inspection, or as input to the real API
+    when Enterprise/trial access is granted.
+
+    Parameters
+    ----------
+    card:
+        A validated CaVDesign card dict.
+    brand_template_id:
+        **Mandatory.** The Canva Brand Template ID.
+    path:
+        Output file path (``.json`` extension recommended).
+    template_fields:
+        Optional allow-list.  When ``None``, all known fields are included.
+    title:
+        Optional design title.
+    background_asset_id:
+        Optional pre-uploaded Canva asset id for the background image.
+    indent:
+        JSON indentation (default 2).  Pass ``None`` for compact output.
+
+    Returns
+    -------
+    Path
+        The resolved path the JSON was written to.
+    """
+    payload = as_canva_autofill_payload(
+        card,
+        brand_template_id,
+        template_fields=template_fields,
+        title=title,
+        background_asset_id=background_asset_id,
+    )
+    validate_payload(payload)
+
+    out = Path(path)
+    out.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=indent) + "\n",
+        encoding="utf-8",
+    )
+    return out.resolve()
