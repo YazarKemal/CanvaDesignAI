@@ -33,7 +33,7 @@ class DeepSeekChatCompletion:
         model: str,
         messages: list[dict[str, str]],
         temperature: float = 0.2,
-        max_tokens: int = 2048,
+        max_tokens: int = 8192,
     ) -> DeepSeekResponse:
         # DeepSeek's real endpoint has no /v1 prefix (unlike OpenAI's own
         # API) -- this must match exactly what the `openai` SDK path hits
@@ -186,7 +186,7 @@ class AnthropicChatCompletion:
         model: str,
         messages: list[dict[str, str]],
         temperature: float = 0.2,
-        max_tokens: int = 2048,
+        max_tokens: int = 8192,
         **__: Any,
     ) -> DeepSeekResponse:
         # Extract system messages (Anthropic requires them in a top-level
