@@ -41,6 +41,13 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+try:
+    from openpyxl import Workbook
+    from openpyxl.styles import Font as _XlFont
+    _OPENPYXL_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    _OPENPYXL_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -514,6 +521,97 @@ def export_payload_as_csv(
     )
     out = Path(path)
     out.write_text(csv_text + "\n", encoding="utf-8")
+    return out.resolve()
+
+
+# ---------------------------------------------------------------------------
+# XLSX export — Canva Bulk Create compatible (Excel format)
+# ---------------------------------------------------------------------------
+
+def export_payload_as_xlsx(
+    card: dict[str, Any],
+    brand_template_id: str,
+    path: str | Path,
+    *,
+    template_fields: list[str] | None = None,
+    title: str | None = None,
+) -> Path:
+    """Write a Canva Bulk Create XLSX file to disk using openpyxl.
+
+    Produces a single-sheet workbook with one header row and one data row,
+    using the same text-field extraction and filtering logic as
+    :func:`as_csv_string`.  Image fields (``BackgroundImage``) are excluded
+    — same as CSV behaviour.
+
+    The header row is styled as bold for readability in Excel/Sheets.
+
+    Parameters
+    ----------
+    card:
+        A validated CaVDesign card dict.
+    brand_template_id:
+        **Mandatory.** The Canva Brand Template ID.
+    path:
+        Output file path (``.xlsx`` extension recommended).
+    template_fields:
+        Optional allow-list.  When ``None``, all known text fields are included.
+    title:
+        Optional design title (used for the payload, not the sheet name).
+
+    Returns
+    -------
+    Path
+        The resolved path the XLSX was written to.
+
+    Raises
+    ------
+    ImportError
+        If ``openpyxl`` is not installed.
+    """
+    if not _OPENPYXL_AVAILABLE:
+        raise ImportError(
+            "openpyxl is required for XLSX export. "
+            "Install it with: pip install openpyxl"
+        )
+
+    # Build the full autofill payload first so we get the same filtering.
+    payload = as_canva_autofill_payload(
+        card,
+        brand_template_id,
+        template_fields=template_fields,
+        title=title,
+    )
+
+    # Warn about excluded image fields (same as CSV).
+    for field_name in _CSV_EXCLUDED_FIELDS:
+        if field_name in payload.get("data", {}):
+            logger.warning(
+                "%s — %s",
+                field_name,
+                _BACKGROUND_IMAGE_GUIDANCE,
+            )
+
+    text_fields = _text_fields_from_payload(payload)
+    ordered = _csv_ordered_fields(text_fields, template_fields)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = (title or card.get("concept", "Canva Design"))[:31]  # Excel sheet name limit
+
+    # Header row (bold)
+    bold_font = _XlFont(bold=True)
+    for col_idx, field_name in enumerate(ordered, start=1):
+        cell = ws.cell(row=1, column=col_idx, value=field_name)
+        cell.font = bold_font
+
+    # Data row
+    for col_idx, field_name in enumerate(ordered, start=1):
+        ws.cell(row=2, column=col_idx, value=text_fields.get(field_name, ""))
+
+    out = Path(path)
+    if out.suffix.lower() not in (".xlsx", ".xlsm"):
+        out = out.with_suffix(".xlsx")
+    wb.save(str(out))
     return out.resolve()
 
 
