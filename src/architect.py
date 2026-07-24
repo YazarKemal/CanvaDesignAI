@@ -43,7 +43,7 @@ from src.style_presets import (
     load_style,
 )
 
-DEFAULT_MODEL = "deepseek-chat"
+DEFAULT_MODEL = "deepseek-v4-pro"
 DEFAULT_BASE_URL = "https://api.deepseek.com"
 
 # -- Auto Style Injector -------------------------------------------------------

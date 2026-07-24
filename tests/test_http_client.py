@@ -86,3 +86,98 @@ def test_deepseek_client_returns_content_matching_openai_sdk_shape(monkeypatch):
     response = client.chat.completions.create(model="deepseek-chat", messages=[{"role": "user", "content": "x"}])
 
     assert response.choices[0].message.content == json_content
+
+
+def test_deepseek_client_falls_back_to_reasoning_content_when_content_empty(monkeypatch):
+    """Adapter: when ``content`` is empty/null, extract from ``reasoning_content``.
+
+    DeepSeek reasoning models (deepseek-v4-flash, deepseek-reasoner) put
+    their final answer in ``reasoning_content`` while leaving ``content``
+    blank or containing only a brief summary.  This test ensures the
+    httpx-based fallback client handles that payload shape correctly.
+    """
+    reasoning_payload = json.dumps({"score": 8.5, "feedback": "good"})
+
+    def fake_post(url, *, json=None, headers=None, timeout=None):
+        return _FakeHttpxResponse({
+            "choices": [{
+                "message": {
+                    "content": "",
+                    "reasoning_content": reasoning_payload,
+                }
+            }]
+        })
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+
+    client = DeepSeekClient(api_key="sk-test", base_url="https://api.deepseek.com")
+    response = client.chat.completions.create(
+        model="deepseek-v4-flash", messages=[{"role": "user", "content": "review this card"}]
+    )
+
+    assert response.choices[0].message.content == reasoning_payload
+
+
+def test_deepseek_client_falls_back_to_reasoning_alias_field(monkeypatch):
+    """Also check the deprecated ``reasoning`` alias used by older API versions."""
+    reasoning_payload = json.dumps({"score": 7.0, "feedback": "fix typography"})
+
+    def fake_post(url, *, json=None, headers=None, timeout=None):
+        return _FakeHttpxResponse({
+            "choices": [{
+                "message": {
+                    "content": None,
+                    "reasoning": reasoning_payload,
+                }
+            }]
+        })
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+
+    client = DeepSeekClient(api_key="sk-test", base_url="https://api.deepseek.com")
+    response = client.chat.completions.create(
+        model="deepseek-v4-flash", messages=[{"role": "user", "content": "review this card"}]
+    )
+
+    assert response.choices[0].message.content == reasoning_payload
+
+
+def test_deepseek_client_uses_content_when_both_fields_present(monkeypatch):
+    """When both ``content`` and ``reasoning_content`` are present, prefer ``content``."""
+    def fake_post(url, *, json=None, headers=None, timeout=None):
+        return _FakeHttpxResponse({
+            "choices": [{
+                "message": {
+                    "content": "primary content",
+                    "reasoning_content": "chain-of-thought reasoning",
+                }
+            }]
+        })
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+
+    client = DeepSeekClient(api_key="sk-test", base_url="https://api.deepseek.com")
+    response = client.chat.completions.create(
+        model="deepseek-v4-pro", messages=[{"role": "user", "content": "x"}]
+    )
+
+    assert response.choices[0].message.content == "primary content"
+
+
+def test_deepseek_client_handles_completely_empty_response(monkeypatch):
+    """When all fields are empty/null/missing, return an empty string gracefully."""
+    def fake_post(url, *, json=None, headers=None, timeout=None):
+        return _FakeHttpxResponse({
+            "choices": [{
+                "message": {}
+            }]
+        })
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+
+    client = DeepSeekClient(api_key="sk-test", base_url="https://api.deepseek.com")
+    response = client.chat.completions.create(
+        model="deepseek-v4-flash", messages=[{"role": "user", "content": "x"}]
+    )
+
+    assert response.choices[0].message.content == ""

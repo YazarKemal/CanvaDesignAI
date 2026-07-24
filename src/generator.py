@@ -38,7 +38,7 @@ from src.llm_json import extract_json
 from src.schema import PromptValidationError, _ensure_hybrid_format, validate_prompt
 from src.style_presets import as_prompt_block as style_prompt_block
 
-DEFAULT_MODEL = "deepseek-chat"
+DEFAULT_MODEL = "deepseek-v4-pro"
 DEFAULT_BASE_URL = "https://api.deepseek.com"
 
 OUTPUT_FORMAT_EXAMPLE = {
