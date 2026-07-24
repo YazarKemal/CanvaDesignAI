@@ -46,7 +46,7 @@ from src.brand_profiles import as_prompt_block as brand_prompt_block
 from src.constitution import as_prompt_block, load_constitution
 from src.llm_json import extract_json
 
-DEFAULT_MODEL = "deepseek-chat"
+DEFAULT_MODEL = "deepseek-v4-pro"
 DEFAULT_BASE_URL = "https://api.deepseek.com"
 
 DEFAULT_ANTHROPIC_MODEL = "claude-3-5-sonnet-20241022"
