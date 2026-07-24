@@ -8,11 +8,15 @@ without native dependencies.
 
 from __future__ import annotations
 
+import json
+import logging
 import os
 from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 
 class DeepSeekChatCompletion:
@@ -52,9 +56,51 @@ class DeepSeekChatCompletion:
         )
         resp.raise_for_status()
         data = resp.json()
+
+        # Debug: log the full raw response so we can inspect which fields
+        # carry the actual content (especially for reasoning/chain-of-thought
+        # models like deepseek-v4-flash where content may be empty and the
+        # real output lives in reasoning_content).
+        logger.debug(
+            "DeepSeek raw response (keys: %s) | choices[0].message keys: %s | full: %s",
+            list(data.keys()),
+            list(data.get("choices", [{}])[0].get("message", {}).keys()),
+            json.dumps(data, ensure_ascii=False),
+        )
+
         choice = data["choices"][0]
+        message = choice.get("message", {})
+
+        # Primary: the standard ``content`` field (used by v4-pro and most
+        # non-reasoning models).
+        content = message.get("content") or ""
+
+        # Fallback: reasoning models (deepseek-v4-flash, deepseek-reasoner)
+        # put their final answer in ``reasoning_content`` while ``content``
+        # may be empty or hold only a brief summary.  Also check deprecated
+        # ``reasoning`` alias used by some older API versions.
+        if not content:
+            reasoning = message.get("reasoning_content") or message.get("reasoning") or ""
+            if reasoning:
+                logger.info(
+                    "DeepSeek response: content is empty; extracting from "
+                    "reasoning_content (%d chars).",
+                    len(reasoning),
+                )
+                content = reasoning
+
+        # Last resort: if every known field is empty, log a warning so the
+        # operator can see the full payload and adapt the fallback list.
+        if not content:
+            logger.warning(
+                "DeepSeek response has empty content AND empty reasoning_content. "
+                "Raw message keys: %s | message: %s",
+                list(message.keys()),
+                json.dumps(message, ensure_ascii=False),
+            )
+
         return DeepSeekResponse(
-            choices=[DeepSeekChoice(message=DeepSeekMessage(content=choice["message"]["content"]))]
+            choices=[DeepSeekChoice(message=DeepSeekMessage(content=content))]
         )
 
 
