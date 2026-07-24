@@ -20,6 +20,7 @@ from src.canva_adapter import (
     as_csv_string,
     export_payload_as_csv,
     export_payload_as_json,
+    export_payload_as_xlsx,
     resolve_template_id,
     upload_background_asset,
     validate_payload,
@@ -556,3 +557,120 @@ class TestExportPayloadAsJson:
                 assert list(payload["data"].keys()) == [FIELD_HEADLINE]
             finally:
                 Path(f.name).unlink(missing_ok=True)
+
+
+# ---------------------------------------------------------------------------
+# export_payload_as_xlsx
+# ---------------------------------------------------------------------------
+
+class TestExportPayloadAsXlsx:
+    def test_writes_valid_xlsx_file_to_disk(self, minimal_card: dict):
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".xlsx", delete=False
+        ) as f:
+            f.close()
+            try:
+                path = export_payload_as_xlsx(minimal_card, "tpl_test123", f.name)
+                assert path.exists()
+                assert path.suffix == ".xlsx"
+                assert path.stat().st_size > 0
+            finally:
+                Path(f.name).unlink(missing_ok=True)
+
+    def test_xlsx_header_row_contains_text_field_names(self, minimal_card: dict):
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".xlsx", delete=False
+        ) as f:
+            f.close()
+            try:
+                from openpyxl import load_workbook
+                path = export_payload_as_xlsx(minimal_card, "tpl_test123", f.name)
+                wb = load_workbook(str(path))
+                ws = wb.active
+                header = [ws.cell(row=1, column=c).value for c in range(1, ws.max_column + 1)]
+                assert FIELD_HEADLINE in header
+                assert FIELD_SUBTEXT in header
+                assert FIELD_CTA_TEXT in header
+            finally:
+                Path(f.name).unlink(missing_ok=True)
+
+    def test_xlsx_data_row_contains_text_values(self, minimal_card: dict):
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".xlsx", delete=False
+        ) as f:
+            f.close()
+            try:
+                from openpyxl import load_workbook
+                path = export_payload_as_xlsx(minimal_card, "tpl_test123", f.name)
+                wb = load_workbook(str(path))
+                ws = wb.active
+                data_row = [ws.cell(row=2, column=c).value for c in range(1, ws.max_column + 1)]
+                flat = " ".join(str(v) for v in data_row)
+                assert "Grand Opening" in flat
+                assert "Freshly roasted, every morning." in flat
+            finally:
+                Path(f.name).unlink(missing_ok=True)
+
+    def test_background_image_excluded_from_xlsx(self, minimal_card: dict):
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".xlsx", delete=False
+        ) as f:
+            f.close()
+            try:
+                from openpyxl import load_workbook
+                path = export_payload_as_xlsx(minimal_card, "tpl_test123", f.name)
+                wb = load_workbook(str(path))
+                ws = wb.active
+                header = [ws.cell(row=1, column=c).value for c in range(1, ws.max_column + 1)]
+                assert FIELD_BACKGROUND_IMAGE not in header
+            finally:
+                Path(f.name).unlink(missing_ok=True)
+
+    def test_xlsx_header_is_bold(self, minimal_card: dict):
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".xlsx", delete=False
+        ) as f:
+            f.close()
+            try:
+                from openpyxl import load_workbook
+                path = export_payload_as_xlsx(minimal_card, "tpl_test123", f.name)
+                wb = load_workbook(str(path))
+                ws = wb.active
+                for c in range(1, ws.max_column + 1):
+                    cell = ws.cell(row=1, column=c)
+                    assert cell.font.bold is True, f"Header cell {c} is not bold"
+            finally:
+                Path(f.name).unlink(missing_ok=True)
+
+    def test_xlsx_respects_template_fields(self, minimal_card: dict):
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".xlsx", delete=False
+        ) as f:
+            f.close()
+            try:
+                from openpyxl import load_workbook
+                path = export_payload_as_xlsx(
+                    minimal_card,
+                    "tpl_test123",
+                    f.name,
+                    template_fields=[FIELD_HEADLINE],
+                )
+                wb = load_workbook(str(path))
+                ws = wb.active
+                header = [ws.cell(row=1, column=c).value for c in range(1, ws.max_column + 1)]
+                assert header == [FIELD_HEADLINE]
+            finally:
+                Path(f.name).unlink(missing_ok=True)
+
+    def test_auto_adds_xlsx_extension(self, minimal_card: dict):
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".csv", delete=False
+        ) as f:
+            f.close()
+            try:
+                path = export_payload_as_xlsx(minimal_card, "tpl_test123", f.name)
+                assert path.suffix == ".xlsx"
+            finally:
+                # Delete both the original and the xlsx
+                Path(f.name).unlink(missing_ok=True)
+                path.unlink(missing_ok=True)
