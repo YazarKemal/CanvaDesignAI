@@ -11,6 +11,7 @@
     "structured white space"
   ],
   "palette_hint": "Swiss reduction — signal red (#E30613) on paper white (#F4F4F2), anchored by near-black (#111111) for legible contrast",
+  "text_only_layout": true,
   "best_for": "corporate annual reports, editorial magazine layouts, and minimalist fashion branding with Helvetica precision",
   "graphic_composition": {
     "person_cutout": "High-contrast duotone photographic portrait using two colours from the palette, strictly aligned to the mathematical grid (occupying exactly 2-3 grid columns), shot with diffused overcast light for neutral objectivity. The cutout must be a clean geometric crop — no feathered edges, no drop shadow, no gradient fade. The subject gazes toward the headline, creating a directional reading line.",
