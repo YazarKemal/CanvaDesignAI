@@ -32,8 +32,19 @@ def _valid_card_dict() -> dict:
             "negative_prompt": "no AI-generated imagery, no text, no watermark, busy background",
             "layout_style": "Minimalist",
         },
-        "vector_elements": {
-            "thin_divider": "horizontal 0.5px rule in muted gold, centered",
+        "vector_elements": [
+            {
+                "role": "thin rule",
+                "description": "horizontal 0.5px rule in muted gold at 60% opacity",
+                "position": "centred, 70% from top",
+                "scale": "full-width minus 48px margins",
+            }
+        ],
+        "hero_asset": {
+            "description": "Warm coffee shop interior",
+            "treatment": "full-bleed photo",
+            "stock_findable": True,
+            "notes": "",
         },
         "native_typography": {
             "headline": "Hello World",
@@ -53,6 +64,20 @@ def _valid_card_dict() -> dict:
                 "micro_spacing": "24 px below subtext",
             },
         },
+        "text_blocks": [
+            {
+                "role": "headline",
+                "content": "Hello World",
+                "zone": "top 30%, left-aligned with 48px margin",
+                "relative_scale": 1.0,
+            },
+            {
+                "role": "subtext",
+                "content": "A short subtext line.",
+                "zone": "below headline, left-aligned",
+                "relative_scale": 0.25,
+            },
+        ],
         "direct_action_tip": [
             "PRIMARY: Use Canva Native Layout Engine to search stock photos for...",
             "ALTERNATIVE: Open Canva → Create Design → 1080x1080...",
