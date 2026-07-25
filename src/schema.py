@@ -111,6 +111,11 @@ PROMPT_CARD_SCHEMA: dict[str, Any] = {
                     "properties": {
                         "headline_font": {"type": "string", "minLength": 1},
                         "body_font": {"type": "string", "minLength": 1},
+                        "confidence": {
+                            "type": "string",
+                            "enum": ["observed", "guess", ""],
+                            "description": "Whether the font names were confidently matched to Canva built-in fonts or guessed.",
+                        },
                     },
                     "additionalProperties": True,
                 },

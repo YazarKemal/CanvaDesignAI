@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from src.llm_json import extract_json
+from src.palette import extract_palette
 from src.schema import (
     PROMPT_CARD_SCHEMA,
     PromptValidationError,
@@ -229,7 +230,10 @@ rather than omitting a required field.
 - The design MUST target "Canva Native Layout Engine" (target_tool).
 - Background (raster_background) is a Canva Stock Library search query \
 (magic_media_prompt) + a negative_prompt.  Describe the visual scene \
-precisely enough that someone could find a matching Canva stock photo.
+precisely enough that someone could find a matching Canva stock photo.  \
+If an element is listed in vector_elements, do not also describe it in \
+raster_background.magic_media_prompt.  The background prompt describes \
+ONLY the base surface — all graphic overlays belong in vector_elements.
 - Vector elements (vector_elements) is an ARRAY of objects — NOT a \
 fixed-key object.  List EVERY non-photographic graphic element you can \
 see: oversized background numerals or letters, flags, symbols, colour \
@@ -243,8 +247,13 @@ full-bleed photograph, illustration, or none.  This is SEPARATE from \
 raster_background.  If the image has a person, model, or object that is \
 the focal point, it goes here, NOT in the background description.  \
 Fields: description, treatment (one of "cutout", "full-bleed photo", \
-"illustration", "none"), stock_findable (true/false — can it be found \
-in Canva Stock?), notes (if not stock-findable, explain why).
+"illustration", "none"), stock_findable (true/false).  Set to false when the hero depicts a \
+specific identifiable person, a historical figure, a branded product, \
+or any subject that a generic stock library would not contain.  When \
+false, explain why in notes.  Default to false when uncertain \
+— stock_findable must only be true when you are confident this exact \
+subject exists in Canva Stock or Unsplash.  notes: explain why if not \
+stock-findable, or if defaulted to false due to uncertainty.
 - Text blocks (text_blocks) is an ARRAY of EVERY visible text block on \
 the canvas.  Start with the LARGEST typographic element, whatever it \
 is — it is often a background numeral or word, not the headline.  Then \
@@ -252,18 +261,23 @@ list every remaining text block in descending size order.  Each block \
 has: role (one of "eyebrow", "headline", "subtext", "quote", "caption", \
 "display_numeral"), content (the EXACT visible text), zone (where it \
 sits, e.g. "top 20%, centre-aligned"), relative_scale (number — ratio \
-relative to the largest block, so 1.0 = largest, 0.35 = ~⅓ the size).
+relative to the largest block, so 1.0 = largest, 0.35 = ~⅓ the size).  \
+Never add descriptive words to observed text.  Copy text exactly as it \
+appears in the image, character-for-character whenever possible.  If you \
+cannot read text clearly, leave the content field empty — never fabricate \
+placeholder content.
 - Typography (native_typography) MUST include: headline (short, <=6 words), \
-subtext (<=14 words), color_palette (4-5 HEX codes), fonts (headline_font \
-and body_font — use real Canva built-in font names), alignment_zone (exact \
-position), headline_pt, subtext_pt, and a micro_tags object with \
-volume_line, category_line, origin_line, micro_pt, micro_color, micro_font, \
-micro_spacing.
-- Color palette (color_palette): Sample colours from the IMAGE ITSELF.  Do \
-NOT output well-known framework colours (#D32F2F, #FFFFFF, #000000) unless \
-they are truly present in the image.  Distinguish warm off-whites and creams \
-from pure white.  Provide 4-5 colours including the dominant colours of \
-any hero asset.
+subtext (<=14 words), color_palette (4-5 placeholder hex strings — will be \
+overwritten), fonts (include a "confidence" field: "observed" if you can \
+match the font to a specific Canva built-in font name with high confidence, \
+"guess" if you are uncertain), alignment_zone (exact position), headline_pt, \
+subtext_pt, and a micro_tags object with volume_line, category_line, \
+origin_line, micro_pt, micro_color, micro_font, micro_spacing.
+- Color palette (color_palette): Do not guess hex colors.  The palette is \
+extracted separately by the pipeline from the actual image pixels.  You may \
+still populate the color_palette field, but whatever you put there will be \
+replaced with the real pixel values — the field exists for schema \
+completeness only.
 - direct_action_tip is an array of 2-5 strings — step-by-step instructions \
 for recreating this design in Canva's UI.
 - canva_keywords: 2-4 short keyword strings from the Canva knowledge base.
@@ -315,8 +329,9 @@ Output ONLY this JSON shape (values in angle brackets are type placeholders \
     "subtext_pt": "<integer>",
     "color_palette": ["<hex>", "<hex>", "<hex>"],
     "fonts": {
-      "headline_font": "<observed headline font name>",
-      "body_font": "<observed body font name>"
+      "headline_font": "<observed headline font name or empty string>",
+      "body_font": "<observed body font name or empty string>",
+      "confidence": "<observed|guess|>"
     },
     "alignment_zone": "<exact position description, e.g. top 30% left-aligned>",
     "micro_tags": {
@@ -403,6 +418,14 @@ def deconstruct_template(
 
     raw = client.deconstruct_image(image_bytes, mime_type, prompt=DECONSTRUCTION_PROMPT)
 
+    # --- Extract real pixel palette (vision model cannot sample colours) ---------
+    try:
+        real_palette = extract_palette(image_bytes, n=5)
+    except Exception:
+        logger.warning("Palette extraction failed — keeping model palette as-is",
+                       exc_info=True)
+        real_palette = None
+
     try:
         card = extract_json(raw)
     except json.JSONDecodeError as exc:
@@ -421,6 +444,13 @@ def deconstruct_template(
     card["category"] = category
     card["format"] = canvas_format
     card["approved"] = False
+
+    # ---- Overwrite palette with pixel-extracted colours --------------------
+    if real_palette is not None:
+        card["color_palette_model_guess"] = (
+            card.get("native_typography", {}).get("color_palette", [])
+        )
+        card.setdefault("native_typography", {})["color_palette"] = real_palette
 
     # Normalise legacy flat-card fields into the hybrid split-layer format
     # so every record in the corpus has the same shape.

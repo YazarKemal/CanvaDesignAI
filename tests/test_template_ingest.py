@@ -1,11 +1,14 @@
 """Tests for src/template_ingest.py — the offline ingestion layer."""
 
+import io
 import json
+import re
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from PIL import Image
 
 from src.schema import PromptValidationError
 from src.template_ingest import (
@@ -529,3 +532,192 @@ def test_generator_module_has_no_openai_or_vision_import():
         "src/generator.py must NOT import template_ingest — ingestion modules "
         "are separate from the runtime pipeline."
     )
+
+
+# ---------------------------------------------------------------------------
+# Palette extraction tests
+# ---------------------------------------------------------------------------
+
+
+def test_extract_palette_returns_known_colors():
+    """extract_palette should return valid hex codes from a synthetic
+    image.  Quantization may shift colours slightly — verify hex format
+    and count, not exact values."""
+    from src.palette import extract_palette
+
+    # Build a 300x100 image: three 100px-wide vertical stripes.
+    img = Image.new("RGB", (300, 100))
+    for x in range(100):
+        for y in range(100):
+            img.putpixel((x, y), (255, 0, 0))       # #FF0000 — red, 100px
+    for x in range(100, 200):
+        for y in range(100):
+            img.putpixel((x, y), (0, 128, 0))       # #008000 — green, 100px
+    for x in range(200, 300):
+        for y in range(100):
+            img.putpixel((x, y), (0, 0, 255))       # #0000FF — blue, 100px
+
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    image_bytes = buf.getvalue()
+
+    palette = extract_palette(image_bytes, n=3)
+    # Median-cut may shift colours slightly — verify we get 3 hex codes.
+    assert len(palette) == 3, f"Expected 3 colours, got {palette}"
+    hex_pattern = re.compile(r"^#[0-9A-F]{6}$")
+    for c in palette:
+        assert hex_pattern.match(c), f"Invalid hex: {c!r}"
+    # First colour should be reddish (most dominant by pixel count tie-break).
+    # We don't enforce exact hex because quantize may shift.
+
+
+def test_extract_palette_rejects_corrupt_bytes():
+    """extract_palette should raise on non-image bytes."""
+    from src.palette import extract_palette
+
+    with pytest.raises(Exception):
+        extract_palette(b"not-an-image", n=5)
+
+
+def test_extract_palette_single_color():
+    """A solid-colour image should return that one colour (or close to it
+    — median-cut quantize may shift by a few values)."""
+    from src.palette import extract_palette
+
+    img = Image.new("RGB", (100, 100), (18, 52, 86))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    image_bytes = buf.getvalue()
+
+    palette = extract_palette(image_bytes, n=5)
+    # Single-colour image: at least 1 result, all valid hex.
+    assert len(palette) >= 1
+    hex_pattern = re.compile(r"^#[0-9A-F]{6}$")
+    for c in palette:
+        assert hex_pattern.match(c), f"Invalid hex: {c!r}"
+
+
+def test_deconstruct_template_overwrites_palette_and_saves_guess():
+    """deconstruct_template must save the model's colour guess and overwrite
+    color_palette with real pixel-extracted colours."""
+    card = _valid_card_dict()
+    # Model returns known-bad palette with named colours.
+    model_colors = ["#D32F2F", "#8B0000", "#FFFFFF", "#000000", "#1976D2"]
+    card["native_typography"]["color_palette"] = model_colors
+    client = _fake_vision_client(json.dumps(card))
+
+    # Create a solid red synthetic image.
+    img = Image.new("RGB", (100, 100), (255, 0, 0))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    red_image = buf.getvalue()
+
+    record = deconstruct_template(
+        red_image, "image/png",
+        **_provenance_kwargs(),
+        client=client,
+    )
+
+    # Model's guess must be preserved.
+    assert record["color_palette_model_guess"] == model_colors
+    # Real palette must be different from the model guess.
+    real_palette = record["native_typography"]["color_palette"]
+    assert real_palette != model_colors
+    # All entries must be valid hex.
+    hex_pattern = re.compile(r"^#[0-9A-F]{6}$")
+    for c in real_palette:
+        assert hex_pattern.match(c), f"Invalid hex: {c!r}"
+
+
+def test_deconstruct_template_falls_back_on_bad_image():
+    """When image_bytes is not a real image, palette extraction should fail
+    gracefully and keep the model's palette.  The happy-path test with
+    b'fake-image-bytes' also exercises this path."""
+    card = _valid_card_dict()
+    model_colors = ["#111111", "#222222", "#333333", "#444444", "#555555"]
+    card["native_typography"]["color_palette"] = model_colors
+    client = _fake_vision_client(json.dumps(card))
+
+    record = deconstruct_template(
+        b"not-valid-image-bytes", "image/png",
+        **_provenance_kwargs(),
+        client=client,
+    )
+
+    # Palette must remain as-is (no crash).
+    assert record["native_typography"]["color_palette"] == model_colors
+    # color_palette_model_guess must NOT be set (no extraction happened).
+    assert "color_palette_model_guess" not in record
+
+
+# ---------------------------------------------------------------------------
+# DECONSTRUCTION_PROMPT — new rules
+# ---------------------------------------------------------------------------
+
+
+def test_deconstruction_prompt_has_new_palette_instruction():
+    """The prompt must tell the model that palette is extracted separately."""
+    assert "Do not guess hex colors" in DECONSTRUCTION_PROMPT
+    assert "palette is extracted separately" in DECONSTRUCTION_PROMPT
+
+
+def test_deconstruction_prompt_removed_old_palette_rule():
+    """The old palette sampling instruction must no longer appear."""
+    assert "Sample colours from the IMAGE ITSELF" not in DECONSTRUCTION_PROMPT
+    assert "Distinguish warm off-whites and creams" not in DECONSTRUCTION_PROMPT
+
+
+def test_deconstruction_prompt_has_stock_findable_hardening():
+    """stock_findable must default to false when uncertain."""
+    assert "Default to false when uncertain" in DECONSTRUCTION_PROMPT
+    assert "identifiable person" in DECONSTRUCTION_PROMPT
+    assert "branded product" in DECONSTRUCTION_PROMPT
+
+
+def test_deconstruction_prompt_has_dedup_rule():
+    """Vector elements must not leak into the background description."""
+    assert "do not also describe it in raster_background" in DECONSTRUCTION_PROMPT
+
+
+def test_deconstruction_prompt_has_text_fidelity_rule():
+    """Text must be copied exactly, never fabricated."""
+    assert "Never add descriptive words to observed text" in DECONSTRUCTION_PROMPT
+    assert "never fabricate placeholder content" in DECONSTRUCTION_PROMPT
+
+
+def test_deconstruction_prompt_has_font_confidence():
+    """The prompt must instruct the model to report font confidence."""
+    assert '"confidence"' in DECONSTRUCTION_PROMPT
+    assert '"observed"' in DECONSTRUCTION_PROMPT
+    assert '"guess"' in DECONSTRUCTION_PROMPT
+
+
+# ---------------------------------------------------------------------------
+# Fonts confidence schema (valid values pass, backward-compat preserved)
+# ---------------------------------------------------------------------------
+
+
+def test_fonts_confidence_valid_values():
+    """fonts.confidence must accept 'observed', 'guess', or empty string,
+    and omitting the field must still pass validation."""
+    import jsonschema
+    from src.template_ingest import TEMPLATE_CARD_SCHEMA
+
+    base = _full_record()
+
+    # No confidence — should still pass (backward compat).
+    if "confidence" in base["native_typography"]["fonts"]:
+        del base["native_typography"]["fonts"]["confidence"]
+    jsonschema.validate(instance=base, schema=TEMPLATE_CARD_SCHEMA)
+
+    # confidence="observed"
+    base["native_typography"]["fonts"]["confidence"] = "observed"
+    jsonschema.validate(instance=base, schema=TEMPLATE_CARD_SCHEMA)
+
+    # confidence="guess"
+    base["native_typography"]["fonts"]["confidence"] = "guess"
+    jsonschema.validate(instance=base, schema=TEMPLATE_CARD_SCHEMA)
+
+    # confidence="" (empty — model couldn't determine)
+    base["native_typography"]["fonts"]["confidence"] = ""
+    jsonschema.validate(instance=base, schema=TEMPLATE_CARD_SCHEMA)
