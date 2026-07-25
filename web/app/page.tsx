@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { BrandSelect } from "@/components/BrandSelect";
 import { ChatInput } from "@/components/ChatInput";
 import { ChatPromptCard } from "@/components/ChatPromptCard";
@@ -142,6 +143,14 @@ export default function Home() {
             </summary>
             <StyleSelect selected={style} onChange={setStyle} />
           </details>
+          <div className="mt-2 text-xs text-zinc-600">
+            <Link
+              href="/ingest"
+              className="hover:text-zinc-400 transition-colors"
+            >
+              ▶ Şablon yükle: kendi referanslarını ekle
+            </Link>
+          </div>
         </div>
 
         {/* Terminal log — flows top to bottom, left-bordered entries */}
