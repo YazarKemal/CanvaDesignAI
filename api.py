@@ -21,9 +21,18 @@ load_dotenv(override=True)
 
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+
+from src.template_ingest import (
+    TemplateIngestError,
+    append_template_card,
+    approve_card,
+    deconstruct_template,
+    load_template_cards,
+)
+from src.vision_client import VisionClientError
 
 from src.brand_profiles import BrandNotFoundError, list_brands, load_brand
 from src.color_science import best_contrast_pair
@@ -104,6 +113,24 @@ class AdaptRequest(BaseModel):
 
 class AdaptResponse(BaseModel):
     variants: dict[str, AdaptVariant]
+
+
+# ---------------------------------------------------------------------------
+# Ingestion models
+# ---------------------------------------------------------------------------
+
+ALLOWED_MIME_TYPES = {"image/png", "image/jpeg", "image/webp"}
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+
+
+class IngestApproveRequest(BaseModel):
+    card: dict[str, Any] = Field(..., description="The deconstructed card to approve and save.")
+    reviewer_note: str | None = Field(None, description="Optional free-text note from the reviewer.")
+
+
+class IngestApproveResponse(BaseModel):
+    ok: bool
+    total_cards: int
 
 
 # ---------------------------------------------------------------------------
@@ -303,3 +330,91 @@ def adapt(request: AdaptRequest) -> AdaptResponse:
         )
 
     return AdaptResponse(variants=response_variants)
+
+
+# ---------------------------------------------------------------------------
+# Ingestion endpoints — template image → vision deconstruction → human approval
+# ---------------------------------------------------------------------------
+
+
+@app.post("/ingest/deconstruct")
+async def ingest_deconstruct(
+    file: UploadFile = File(...),
+    source_type: str = Form(...),
+    source_ref: str = Form(...),
+    archetype: str = Form(...),
+    category: str = Form(...),
+    canvas_format: str = Form(...),
+) -> dict[str, Any]:
+    """Deconstruct a template image into a card JSON using the vision model.
+
+    The image is read into memory only — it is NEVER written to disk.
+    The returned card has ``approved=False``; nothing is written to the
+    corpus until the human reviewer calls ``/ingest/approve``.
+    """
+
+    # ── Validate mime type ──────────────────────────────────────────────
+    mime = file.content_type or ""
+    if mime not in ALLOWED_MIME_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type '{mime}'. Accepted: {', '.join(sorted(ALLOWED_MIME_TYPES))}.",
+        )
+
+    # ── Read into memory (size-limited) ─────────────────────────────────
+    try:
+        image_bytes = await file.read()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Failed to read uploaded file: {exc}") from exc
+
+    if len(image_bytes) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File too large ({len(image_bytes)} bytes). Maximum is {MAX_FILE_SIZE} bytes (10 MB).",
+        )
+
+    if len(image_bytes) == 0:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
+    # ── Deconstruct via vision model ────────────────────────────────────
+    try:
+        card = deconstruct_template(
+            image_bytes,
+            mime,
+            source_type=source_type,
+            source_ref=source_ref,
+            archetype=archetype,
+            category=category,
+            canvas_format=canvas_format,
+        )
+    except VisionClientError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except TemplateIngestError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return card
+
+
+@app.post("/ingest/approve", response_model=IngestApproveResponse)
+def ingest_approve(request: IngestApproveRequest) -> IngestApproveResponse:
+    """Approve a deconstructed card and append it to the JSONL corpus.
+
+    Validation and deduplication gates run inside ``approve_card`` and
+    ``append_template_card`` — a broken or duplicate card is rejected
+    with a 400 before anything touches disk.
+    """
+
+    record = request.card
+
+    try:
+        approved = approve_card(record, reviewer_note=request.reviewer_note)
+    except (PromptValidationError, TemplateIngestError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    try:
+        append_template_card(approved)
+    except TemplateIngestError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    total = len(load_template_cards())
+    return IngestApproveResponse(ok=True, total_cards=total)
