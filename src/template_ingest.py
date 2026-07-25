@@ -25,6 +25,7 @@ from src.llm_json import extract_json
 from src.palette import extract_palette
 from src.schema import (
     PROMPT_CARD_SCHEMA,
+    VALIDATION_PROMPT_RULES,
     PromptValidationError,
     _ensure_hybrid_format,
 )
@@ -217,7 +218,7 @@ TEMPLATE_CARD_SCHEMA: dict[str, Any] = {
 # Vision prompt — the instruction that deconstructs a template image into JSON
 # ---------------------------------------------------------------------------
 
-DECONSTRUCTION_PROMPT = """\
+DECONSTRUCTION_PROMPT_BASE = """\
 You are a design-intake analyst.  You are shown a Canva template, Behance \
 portfolio graphic, or uploaded design image.  Your ONLY job is to describe \
 it as a single Canva automation card in the CaVDesign JSON format.
@@ -351,6 +352,23 @@ Output ONLY this JSON shape (values in angle brackets are type placeholders \
 }
 """
 
+# Backward-compatible alias — tests and callers can still import DECONSTRUCTION_PROMPT.
+DECONSTRUCTION_PROMPT = DECONSTRUCTION_PROMPT_BASE
+
+
+def _build_deconstruction_prompt() -> str:
+    """Return the full deconstruction prompt with current validation rules
+    injected from :data:`src.schema.VALIDATION_PROMPT_RULES`.
+
+    This keeps the prompt in sync with validation logic — when rules change
+    in schema.py, the prompt updates automatically.
+    """
+    return DECONSTRUCTION_PROMPT_BASE.replace(
+        "CRITICAL: Never copy the placeholder values",
+        VALIDATION_PROMPT_RULES + "\n"
+        "CRITICAL: Never copy the placeholder values",
+    )
+
 
 # ---------------------------------------------------------------------------
 # Errors
@@ -359,6 +377,68 @@ Output ONLY this JSON shape (values in angle brackets are type placeholders \
 
 class TemplateIngestError(RuntimeError):
     """Raised when an ingestion rule is violated (e.g. unapproved card append)."""
+
+
+# ---------------------------------------------------------------------------
+# Auto-repair
+# ---------------------------------------------------------------------------
+
+MAX_REPAIR_ATTEMPTS = 2
+
+
+def repair_card(
+    card: dict[str, Any],
+    error: str,
+    client: Any,
+) -> dict[str, Any] | None:
+    """Attempt to repair *card* by sending the validation error back to the
+    LLM.  Returns the updated card dict on success, or ``None`` if the LLM
+    response could not be parsed.
+
+    Only fields that actually changed are recorded in
+    ``card["auto_repaired_fields"]`` — the LLM is explicitly instructed to
+    fix ONLY the broken field and leave everything else untouched.
+    """
+    prompt = (
+        "You are a JSON repair agent.  Below is a Canva design card that "
+        "failed validation.  Fix ONLY the field(s) mentioned in the error "
+        "message.  Do NOT change any other fields — even if you think they "
+        "could be improved.  Return ONLY the corrected JSON object, no "
+        "markdown fences, no commentary."
+    )
+    card_json = json.dumps(card, ensure_ascii=False, indent=2)
+
+    try:
+        raw = client.repair_json(card_json, error, prompt=prompt)
+    except Exception:
+        logger.warning("repair_json call failed", exc_info=True)
+        return None
+
+    try:
+        fixed = extract_json(raw)
+    except json.JSONDecodeError:
+        logger.warning("repair_card: LLM returned unparseable JSON")
+        return None
+
+    # Merge — only apply fields that actually changed.
+    repaired_fields: list[str] = []
+    for key in list(card.keys()):
+        if key in fixed and fixed[key] != card[key]:
+            card[key] = fixed[key]
+            repaired_fields.append(key)
+
+    # Also merge any NEW top-level keys the LLM added (shouldn't happen if
+    # it follows instructions, but be defensive).
+    for key in fixed:
+        if key not in card:
+            card[key] = fixed[key]
+            repaired_fields.append(key)
+
+    if repaired_fields:
+        card.setdefault("auto_repaired_fields", []).extend(repaired_fields)
+        logger.info("Auto-repaired fields: %s", repaired_fields)
+
+    return card
 
 
 # ---------------------------------------------------------------------------
@@ -416,7 +496,7 @@ def deconstruct_template(
     if client is None:
         client = OpenAIVisionClient()
 
-    raw = client.deconstruct_image(image_bytes, mime_type, prompt=DECONSTRUCTION_PROMPT)
+    raw = client.deconstruct_image(image_bytes, mime_type, prompt=_build_deconstruction_prompt())
 
     # --- Extract real pixel palette (vision model cannot sample colours) ---------
     try:
@@ -455,6 +535,28 @@ def deconstruct_template(
     # Normalise legacy flat-card fields into the hybrid split-layer format
     # so every record in the corpus has the same shape.
     _ensure_hybrid_format(card)
+
+    # ---- Auto-repair: fix schema violations via LLM back-and-forth --------
+    for attempt in range(1, MAX_REPAIR_ATTEMPTS + 1):
+        try:
+            validate_template_card(card)
+            break  # card is valid — done
+        except (PromptValidationError, TemplateIngestError) as exc:
+            if attempt >= MAX_REPAIR_ATTEMPTS:
+                raise  # exhausted all retries
+            logger.info(
+                "Auto-repair attempt %d/%d for %s: %s",
+                attempt, MAX_REPAIR_ATTEMPTS, source_ref, exc,
+            )
+            fixed = repair_card(card, str(exc), client)
+            if fixed is None:
+                continue  # LLM returned unparseable — try again
+    else:
+        # for-loop completed without break — all repair attempts exhausted
+        raise TemplateIngestError(
+            f"Auto-repair failed after {MAX_REPAIR_ATTEMPTS} attempt(s) "
+            f"for {source_ref!r}"
+        )
 
     return card
 
@@ -613,8 +715,9 @@ def validate_template_card(record: dict[str, Any]) -> None:
     try:
         jsonschema.validate(instance=record, schema=TEMPLATE_CARD_SCHEMA)
     except jsonschema.ValidationError as exc:
+        path = " → ".join(str(p) for p in exc.absolute_path) if exc.absolute_path else "(root)"
         raise PromptValidationError(
-            f"Ingested card failed schema validation: {exc.message}"
+            f"{path}: {exc.message}"
         ) from exc
 
     # -- Provenance sanity ---------------------------------------------------

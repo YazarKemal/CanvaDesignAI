@@ -406,3 +406,34 @@ def _ensure_hybrid_format(card: dict[str, Any]) -> None:
         if k not in native:
             native[k] = v
     card.setdefault("native_typography", native)
+
+
+# ---------------------------------------------------------------------------
+# Prompt-visible validation rules — injected into DECONSTRUCTION_PROMPT so
+# the vision model knows the cross-field constraints BEFORE generating a card.
+# Update this whenever the corresponding validation logic in validate_prompt()
+# changes, so the prompt stays in sync.
+# ---------------------------------------------------------------------------
+
+VALIDATION_PROMPT_RULES = """\
+CROSS-FIELD CONSTRAINTS — every card MUST pass these checks:
+1. magic_media_prompt MUST contain the literal word of text_zone (top/
+   bottom/left/right/center) describing where negative space is reserved
+   for text overlay.
+2. native_typography.alignment_zone MUST also contain that same text_zone
+   word — the typography position must match the declared text zone.
+3. headline must be <= 6 words — short, punchy, placeholder-ready title.
+4. subtext must be <= 14 words — one supporting line, not a paragraph.
+5. Each color in color_palette must be a valid 6-digit hex (#RRGGBB).
+6. No required field may be an empty string (""). If something is truly
+   absent, write a short description of its absence — e.g. "no subtext"
+   or "no hero asset" — instead of leaving the field blank.
+7. direct_action_tip must have at least 2 step-by-step instructions for
+   recreating this design in Canva's UI.
+8. target_tool must ALWAYS be 'Canva Native Layout Engine' — never
+   anything else.
+9. Output must be pure data — no chat language, no 'I can generate',
+   no 'Would you like', no 'Here is', no conversational filler at all.
+10. raster_background.magic_media_prompt must be at least 30 characters
+    — describe the scene clearly enough to find a matching stock photo.
+"""
