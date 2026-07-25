@@ -172,6 +172,90 @@ class OpenAIVisionClient:
 
         return content
 
+    def repair_json(
+        self,
+        card_json: str,
+        error_message: str,
+        *,
+        prompt: str = "",
+    ) -> str:
+        """Send a failing card + validation error to the LLM and return
+        the corrected JSON as a raw string.
+
+        This is a **text-only** call — no image is sent.  It reuses the same
+        model and HTTP machinery as :meth:`deconstruct_image`.
+
+        Parameters
+        ----------
+        card_json:
+            The current (broken) card serialised as a JSON string.
+        error_message:
+            The validation error message describing what is wrong.
+        prompt:
+            Optional system-level instruction prepended to the request.
+
+        Returns
+        -------
+        str
+            The model's raw text response (expected to be corrected JSON).
+        """
+        full_prompt = (
+            f"{prompt}\n\n"
+            f"--- CURRENT (BROKEN) CARD ---\n{card_json}\n\n"
+            f"--- VALIDATION ERROR ---\n{error_message}\n\n"
+            f"Return ONLY the corrected JSON object, no markdown, no commentary."
+        )
+
+        body = {
+            "model": self.model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": full_prompt,
+                }
+            ],
+            "max_tokens": 4096,
+            "temperature": 0.0,
+        }
+
+        url = f"{self.base_url}/v1/chat/completions"
+        logger.debug("Repair request: model=%s error_len=%d", self.model, len(error_message))
+
+        try:
+            resp = httpx.post(
+                url,
+                json=body,
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+                timeout=self.timeout,
+            )
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise VisionClientError(
+                f"OpenAI Vision API returned {exc.response.status_code}: "
+                f"{_safe_body(exc.response)}"
+            ) from exc
+        except httpx.RequestError as exc:
+            raise VisionClientError(f"HTTP request to OpenAI Vision API failed: {exc}") from exc
+
+        data = resp.json()
+        try:
+            content = data["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError) as exc:
+            raise VisionClientError(
+                f"Unexpected vision response shape — expected "
+                f"choices[0].message.content.  Keys: {list(data.keys())}"
+            ) from exc
+
+        if not content or not isinstance(content, str):
+            raise VisionClientError(
+                f"Vision API returned empty or non-string content: {content!r}"
+            )
+
+        return content
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
