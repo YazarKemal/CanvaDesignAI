@@ -86,8 +86,20 @@ def _provenance_kwargs() -> dict:
         "source_ref": "https://behance.net/gallery/12345-test-template",
         "archetype": "instagram_story",
         "category": "lansman",
-        "format": "9:16",
+        "canvas_format": "9:16",
     }
+
+
+def _full_record(**overrides) -> dict:
+    """Return a valid, approved record ready for append / validation."""
+    record = _valid_card_dict()
+    record.update(_provenance_kwargs())
+    record["format"] = record.pop("canvas_format")  # provenance uses canvas_format kwarg
+    record["ingested_at"] = "2026-07-25T00:00:00Z"
+    record["approved"] = True
+    record["approved_at"] = "2026-07-25T12:00:00Z"
+    record.update(overrides)
+    return record
 
 
 # ---------------------------------------------------------------------------
@@ -116,7 +128,6 @@ def test_deconstruct_template_happy_path():
     assert record["category"] == "lansman"
     assert record["format"] == "9:16"
     assert "ingested_at" in record
-    # ISO-8601 timestamp should contain T separator
     assert "T" in record["ingested_at"]
 
 
@@ -167,35 +178,61 @@ def test_deconstruct_template_rejects_markdown_wrapped_json():
 
 
 # ---------------------------------------------------------------------------
-# approve_card
+# approve_card — validation gate + metadata
 # ---------------------------------------------------------------------------
 
 
-def test_approve_card_sets_flag():
-    """approve_card should flip the approved boolean to True."""
-    record = {"concept": "x", "approved": False}
+def test_approve_card_sets_flag_and_timestamp():
+    """approve_card validates, then sets approved=True + approved_at timestamp."""
+    record = _full_record(approved=False)
+    del record["approved_at"]  # not yet approved
+
     result = approve_card(record)
     assert result["approved"] is True
     assert result is record  # returns same object for chaining
+    assert "approved_at" in result
+    assert "T" in result["approved_at"]
+
+
+def test_approve_card_rejects_invalid_record():
+    """If the record fails validation, approve_card must NOT set approved=True."""
+    record = _full_record(approved=False)
+    del record["approved_at"]
+    # Intentionally corrupt: remove required field
+    del record["native_typography"]["headline"]
+
+    with pytest.raises(Exception):  # PromptValidationError from jsonschema
+        approve_card(record)
+    # approved must remain False — the gate held
+    assert record.get("approved") is not True
+
+
+def test_approve_card_stores_reviewer_note():
+    """When reviewer_note is passed, it should be written into the record."""
+    record = _full_record(approved=False)
+    del record["approved_at"]
+
+    result = approve_card(record, reviewer_note="Looks good, palette matches brand.")
+    assert result["reviewer_note"] == "Looks good, palette matches brand."
+    assert result["approved"] is True
 
 
 def test_approve_card_is_the_only_way():
-    """There should be no other function that sets approved=True.
-    This test is a design assertion — if someone adds a helper that bypasses
-    approve_card(), this test reminds them to update the docs."""
-    # deconstruct_template always sets approved=False
+    """deconstruct_template always sets approved=False; only approve_card flips it."""
     card = _valid_card_dict()
     client = _fake_vision_client(json.dumps(card))
     record = deconstruct_template(b"x", "image/png", **_provenance_kwargs(), client=client)
     assert record["approved"] is False
 
-    # Only approve_card flips it
-    approve_card(record)
-    assert record["approved"] is True
+    # approve_card gate: needs a valid full record
+    full = _full_record(approved=False)
+    del full["approved_at"]
+    approve_card(full)
+    assert full["approved"] is True
 
 
 # ---------------------------------------------------------------------------
-# append_template_card — approval gate
+# append_template_card — approval + validation gate + dedup
 # ---------------------------------------------------------------------------
 
 
@@ -203,7 +240,6 @@ def test_append_rejects_unapproved_card(tmp_path):
     """append_template_card MUST raise TemplateIngestError when approved=False."""
     record = _valid_card_dict()
     record["approved"] = False
-    # Add provenance fields so it's a complete record
     for k, v in _provenance_kwargs().items():
         record[k] = v
 
@@ -212,17 +248,27 @@ def test_append_rejects_unapproved_card(tmp_path):
         append_template_card(record, path=corpus)
 
 
+def test_append_rejects_approved_but_invalid_card(tmp_path):
+    """BLOCKER FIX: An approved=True but broken record must be rejected at
+    the validation gate inside append_template_card.  Nothing is written."""
+    record = _full_record()
+    # Corrupt: give it an impossible headline word count
+    record["native_typography"]["headline"] = "one two three four five six seven eight"
+
+    corpus = tmp_path / "invalid.jsonl"
+    with pytest.raises(PromptValidationError, match="headline"):
+        append_template_card(record, path=corpus)
+
+    # File must not exist or be empty — nothing was written
+    assert not corpus.exists() or corpus.read_text(encoding="utf-8").strip() == ""
+
+
 def test_append_accepts_approved_card(tmp_path):
     """After approve_card(), append should succeed and write a JSONL line."""
-    record = _valid_card_dict()
-    record["approved"] = False
-    for k, v in _provenance_kwargs().items():
-        record[k] = v
+    record = _full_record()
 
-    approve_card(record)
     path = append_template_card(record, path=tmp_path / "test.jsonl")
 
-    # File should exist with one line
     assert path.exists()
     lines = path.read_text(encoding="utf-8").strip().split("\n")
     assert len(lines) == 1
@@ -230,6 +276,45 @@ def test_append_accepts_approved_card(tmp_path):
     loaded = json.loads(lines[0])
     assert loaded["approved"] is True
     assert loaded["concept"] == "Test Template"
+
+
+def test_append_rejects_duplicate_source_ref(tmp_path):
+    """Same source_ref in corpus → TemplateIngestError unless force=True."""
+    corpus = tmp_path / "dedup.jsonl"
+
+    # First append — succeeds
+    record1 = _full_record(source_ref="https://example.com/duplicate-test")
+    append_template_card(record1, path=corpus)
+
+    # Second append with same source_ref — rejected
+    record2 = _full_record(
+        source_ref="https://example.com/duplicate-test",
+        concept="Different Template",
+    )
+    with pytest.raises(TemplateIngestError, match="already exists"):
+        append_template_card(record2, path=corpus)
+
+    # Only the first record should be in the file
+    loaded = load_template_cards(corpus)
+    assert len(loaded) == 1
+
+
+def test_append_force_allows_duplicate_source_ref(tmp_path):
+    """force=True should skip dedup and append even when source_ref exists."""
+    corpus = tmp_path / "force.jsonl"
+
+    record1 = _full_record(source_ref="https://example.com/force-test")
+    append_template_card(record1, path=corpus)
+
+    record2 = _full_record(
+        source_ref="https://example.com/force-test",
+        concept="Overridden Template",
+    )
+    append_template_card(record2, path=corpus, force=True)
+
+    loaded = load_template_cards(corpus)
+    assert len(loaded) == 2
+    assert loaded[1]["concept"] == "Overridden Template"
 
 
 # ---------------------------------------------------------------------------
@@ -242,12 +327,10 @@ def test_jsonl_round_trip(tmp_path):
     corpus = tmp_path / "roundtrip.jsonl"
 
     for i in range(2):
-        card = _valid_card_dict()
-        card["concept"] = f"Template {i}"
-        card["approved"] = True
-        for k, v in _provenance_kwargs().items():
-            card[k] = v
-        card["source_ref"] = f"https://example.com/{i}"
+        card = _full_record(
+            concept=f"Template {i}",
+            source_ref=f"https://example.com/{i}",
+        )
         append_template_card(card, path=corpus)
 
     loaded = load_template_cards(corpus)
@@ -279,20 +362,14 @@ def test_load_skips_malformed_lines(tmp_path):
 
 def test_validate_passes_for_valid_record():
     """A complete, well-formed record should pass validation."""
-    record = _valid_card_dict()
-    for k, v in _provenance_kwargs().items():
-        record[k] = v
-    record["approved"] = True
-    record["ingested_at"] = "2026-07-25T00:00:00Z"
-    # validate_template_card reuses schema.validate_prompt, which will
-    # complain about missing required fields. Let's add those.
+    record = _full_record()
     validate_template_card(record)
 
 
 def test_validate_rejects_missing_provenance():
-    """A record missing required provenance fields should fail validation."""
+    """A record missing required provenance fields should fail schema validation."""
     record = _valid_card_dict()
-    # Don't add provenance — schema requires it
+    # Missing most provenance — only add the bare minimum
     record["source_type"] = "behance"
     record["source_ref"] = "x"
     record["archetype"] = "x"
@@ -306,24 +383,16 @@ def test_validate_rejects_missing_provenance():
 
 def test_validate_rejects_invalid_source_type():
     """source_type must be one of the three allowed values."""
-    record = _valid_card_dict()
-    for k, v in _provenance_kwargs().items():
-        record[k] = v
+    record = _full_record()
     record["source_type"] = "instagram"  # not allowed
-    record["ingested_at"] = "2026-07-25T00:00:00Z"
-    record["approved"] = False
 
-    with pytest.raises(Exception):  # jsonschema ValidationError or PromptValidationError
+    with pytest.raises(Exception):
         validate_template_card(record)
 
 
 def test_validate_rejects_forbidden_chat_language():
     """Cards with conversational filler should be rejected (reusing schema.py rules)."""
-    record = _valid_card_dict()
-    for k, v in _provenance_kwargs().items():
-        record[k] = v
-    record["ingested_at"] = "2026-07-25T00:00:00Z"
-    record["approved"] = False
+    record = _full_record()
     record["direct_action_tip"][0] = "Here is how you build this design..."
 
     with pytest.raises(PromptValidationError, match="banned"):
@@ -332,11 +401,7 @@ def test_validate_rejects_forbidden_chat_language():
 
 def test_validate_rejects_too_many_headline_words():
     """Headline word limit (<=6 words) must be enforced."""
-    record = _valid_card_dict()
-    for k, v in _provenance_kwargs().items():
-        record[k] = v
-    record["ingested_at"] = "2026-07-25T00:00:00Z"
-    record["approved"] = False
+    record = _full_record()
     record["native_typography"]["headline"] = "This is way too many words for a good headline"
 
     with pytest.raises(PromptValidationError, match="headline"):
@@ -344,15 +409,22 @@ def test_validate_rejects_too_many_headline_words():
 
 
 # ---------------------------------------------------------------------------
-# DECONSTRUCTION_PROMPT coverage
+# DECONSTRUCTION_PROMPT coverage & anti-copycat
 # ---------------------------------------------------------------------------
 
 
 def test_deconstruction_prompt_mentions_all_schema_fields():
     """Every required TEMPLATE_CARD_SCHEMA field (excluding provenance)
     must appear in DECONSTRUCTION_PROMPT so the vision model knows to
-    output them."""
-    provenance = {"source_type", "source_ref", "ingested_at", "archetype", "category", "format", "approved"}
+    output them.
+
+    This replaces the removed _check_prompt_coverage() import-time warning
+    with a real test assertion that cannot be silently ignored.
+    """
+    provenance = {
+        "source_type", "source_ref", "ingested_at",
+        "archetype", "category", "format", "approved",
+    }
 
     for field in TEMPLATE_CARD_SCHEMA["required"]:
         if field in provenance:
@@ -361,6 +433,39 @@ def test_deconstruction_prompt_mentions_all_schema_fields():
             f"DECONSTRUCTION_PROMPT must mention field '{field}' "
             f"so the vision model includes it in the output."
         )
+
+
+def test_deconstruction_prompt_has_no_concrete_values():
+    """BLOCKER FIX: The example JSON in DECONSTRUCTION_PROMPT must NOT contain
+    concrete values that the model might copy verbatim.  Every value must be
+    a type placeholder like '<hex>' or '<observed ...>'."""
+    # These concrete strings must NOT appear in the prompt
+    forbidden_concrete = [
+        "CRAFTED IN TURKEY",
+        "VOL.01 / 2026",
+        "EDITORIAL BRANDING",
+        "Montserrat Bold",
+        "Cormorant Garamond",
+        "Inter Regular",
+        "#3B2A1E",
+        "#B8936E",
+        "#E8DDD0",
+        "#8B9D6B",
+        "#D4C5B9",
+        "Headline Text",
+        "Supporting subtext line.",
+    ]
+    for value in forbidden_concrete:
+        assert value not in DECONSTRUCTION_PROMPT, (
+            f"DECONSTRUCTION_PROMPT must NOT contain concrete value {value!r}. "
+            f"Replace it with a type placeholder like '<hex>' or '<observed headline font>' "
+            f"so the vision model extracts from the actual image instead of copying."
+        )
+
+    # The prompt must include the anti-copycat rule
+    assert "Never copy the placeholder values" in DECONSTRUCTION_PROMPT, (
+        "DECONSTRUCTION_PROMPT must instruct the model not to copy placeholder values."
+    )
 
 
 def test_deconstruction_prompt_is_not_empty():

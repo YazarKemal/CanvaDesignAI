@@ -26,8 +26,6 @@ from src.schema import (
     PROMPT_CARD_SCHEMA,
     PromptValidationError,
     _ensure_hybrid_format,
-    _iter_strings,
-    find_forbidden_phrase,
 )
 from src.schema import validate_prompt as _validate_prompt
 
@@ -104,6 +102,23 @@ TEMPLATE_CARD_SCHEMA: dict[str, Any] = {
             "type": "boolean",
             "description": "Human-approval flag.  MUST be False on creation; only approve_card() can set it True.",
         },
+        "approved_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO-8601 timestamp of when the card was approved.  Required when approved is True.",
+        },
+        "reviewer_note": {
+            "type": "string",
+            "description": "Optional free-text note from the human reviewer.",
+        },
+    },
+    # Require approved_at when approved is True.
+    "if": {
+        "properties": {"approved": {"const": True}},
+        "required": ["approved"],
+    },
+    "then": {
+        "required": ["approved_at"],
     },
     "additionalProperties": True,
 }
@@ -144,65 +159,57 @@ for recreating this design in Canva's UI.
 main typography sits.
 - concept: a short title / concept name for this template (<=10 words).
 
-Output ONLY this JSON shape (values are examples — fill with what you see):
+CRITICAL: Never copy the placeholder values from the example shape below. \
+Every value MUST come from what you actually observe in the image. \
+If something is not visible or cannot be determined, use an empty string \
+("") for strings, an empty array ([]) for arrays, or 0 for numbers. \
+Do NOT guess — only report what you can SEE.
+
+Output ONLY this JSON shape (values in angle brackets are type placeholders \
+— replace them with what you actually observe in the image):
 
 {
-  "concept": "Template concept name",
-  "aspect_ratio": "9:16 (1080x1920)",
+  "concept": "<exact headline text visible in the image or empty string>",
+  "aspect_ratio": "<observed aspect ratio, e.g. 1:1 (1080x1080)>",
   "target_tool": "Canva Native Layout Engine",
-  "text_zone": "top",
-  "canva_keywords": ["editorial grid", "gradient background"],
+  "text_zone": "<top|bottom|left|right|center>",
+  "canva_keywords": ["<observed keyword>", "<observed keyword>"],
   "raster_background": {
-    "magic_media_prompt": "Canva Stock Library search query describing the background image...",
+    "magic_media_prompt": "<Canva Stock Library search query matching the background>",
     "negative_prompt": "no AI-generated imagery, no text, no watermark...",
-    "layout_style": "Minimalist"
+    "layout_style": "<observed layout style or empty string>"
   },
   "vector_elements": {
-    "thin_divider": "description of a thin rule...",
-    "accent_frame": "description of a border frame..."
+    "thin_divider": "<description of a thin rule if visible, or empty string>",
+    "accent_frame": "<description of a border frame if visible, or empty string>"
   },
   "native_typography": {
-    "headline": "Headline Text",
-    "subtext": "Supporting subtext line.",
-    "headline_pt": 72,
-    "subtext_pt": 18,
-    "color_palette": ["#3B2A1E", "#B8936E", "#E8DDD0", "#8B9D6B", "#D4C5B9"],
-    "fonts": {"headline_font": "Montserrat Bold", "body_font": "Cormorant Garamond Regular"},
-    "alignment_zone": "top 30% of canvas, left-aligned with 48px margin",
+    "headline": "<exact headline text visible in the image>",
+    "subtext": "<exact subtext visible in the image or empty string>",
+    "headline_pt": "<integer>",
+    "subtext_pt": "<integer>",
+    "color_palette": ["<hex>", "<hex>", "<hex>"],
+    "fonts": {
+      "headline_font": "<observed headline font name>",
+      "body_font": "<observed body font name>"
+    },
+    "alignment_zone": "<exact position description, e.g. top 30% left-aligned>",
     "micro_tags": {
-      "volume_line": "VOL.01 / 2026",
-      "category_line": "EDITORIAL BRANDING",
-      "origin_line": "CRAFTED IN TURKEY",
-      "micro_pt": 9,
-      "micro_color": "#B8936E",
-      "micro_font": "Inter Regular",
-      "micro_spacing": "24 px below subtext, separated by thin divider rule"
+      "volume_line": "<observed volume line or empty string>",
+      "category_line": "<observed category line or empty string>",
+      "origin_line": "<observed origin line or empty string>",
+      "micro_pt": "<integer>",
+      "micro_color": "<hex>",
+      "micro_font": "<observed micro tag font name>",
+      "micro_spacing": "<observed spacing or empty string>"
     }
   },
   "direct_action_tip": [
-    "PRIMARY (Canva Native Layout Engine): Step 1...",
-    "ALTERNATIVE (Step-by-step manual): Step 2..."
+    "<step-by-step instruction 1>",
+    "<step-by-step instruction 2>"
   ]
 }
 """
-
-# Verify at import time that the prompt mentions every schema field.
-def _check_prompt_coverage() -> None:
-    """Assert that DECONSTRUCTION_PROMPT references every required
-    TEMPLATE_CARD_SCHEMA field (excluding provenance fields)."""
-    _provenance_fields = {"source_type", "source_ref", "ingested_at", "archetype", "category", "format", "approved"}
-    for field in TEMPLATE_CARD_SCHEMA.get("required", []):
-        if field in _provenance_fields:
-            continue
-        if field not in DECONSTRUCTION_PROMPT:
-            logger.warning(
-                "DECONSTRUCTION_PROMPT does not mention field '%s' — "
-                "the vision model may omit it.",
-                field,
-            )
-
-
-_check_prompt_coverage()
 
 
 # ---------------------------------------------------------------------------
@@ -227,7 +234,7 @@ def deconstruct_template(
     source_ref: str,
     archetype: str,
     category: str,
-    format: str,
+    canvas_format: str,
     client: Any | None = None,
 ) -> dict[str, Any]:
     """Send a template image to the vision model and return a card dict.
@@ -250,8 +257,10 @@ def deconstruct_template(
         Design archetype (e.g. ``"instagram_story"``).
     category:
         Template category (e.g. ``"bayram"``, ``"lansman"``).
-    format:
-        Page / canvas format (e.g. ``"9:16"``).
+    canvas_format:
+        Page / canvas format (e.g. ``"9:16"``).  Stored in the ``format``
+        field of the record (not named ``canvas_format`` to avoid shadowing
+        the Python builtin here).
     client:
         An :class:`OpenAIVisionClient` instance.  Created automatically if
         ``None`` (using env vars for configuration).
@@ -285,7 +294,7 @@ def deconstruct_template(
     card["ingested_at"] = datetime.now(timezone.utc).isoformat()
     card["archetype"] = archetype
     card["category"] = category
-    card["format"] = format
+    card["format"] = canvas_format
     card["approved"] = False
 
     # Normalise legacy flat-card fields into the hybrid split-layer format
@@ -295,35 +304,102 @@ def deconstruct_template(
     return card
 
 
-def approve_card(record: dict[str, Any]) -> dict[str, Any]:
+def approve_card(
+    record: dict[str, Any],
+    *,
+    reviewer_note: str | None = None,
+) -> dict[str, Any]:
     """Approve a previously deconstructed card so it can enter the corpus.
+
+    Validates the record first — if validation fails, **approved is NOT set**
+    and the error propagates.  This ensures a broken card can never be
+    approved by accident.
 
     This is the ONLY way to set ``approved`` to ``True`` — there is no
     programmatic shortcut.  Returns *record* for chaining convenience.
+
+    Parameters
+    ----------
+    record:
+        The deconstructed card dict.  Must pass :func:`validate_template_card`.
+    reviewer_note:
+        Optional free-text note from the human reviewer (stored in the record).
+
+    Returns
+    -------
+    dict
+        The same *record* with ``approved=True``, ``approved_at`` timestamp,
+        and optionally ``reviewer_note`` set.
     """
+    validate_template_card(record)
+
     record["approved"] = True
+    record["approved_at"] = datetime.now(timezone.utc).isoformat()
+    if reviewer_note is not None:
+        record["reviewer_note"] = reviewer_note
     return record
 
 
 def append_template_card(
     record: dict[str, Any],
     path: str | Path = DEFAULT_CORPUS_PATH,
+    *,
+    force: bool = False,
 ) -> Path:
     """Append a single approved card to the JSONL corpus.
+
+    Guard chain (in order):
+
+    1. **Approval gate** — *record* must have ``approved=True``.
+    2. **Validation gate** — :func:`validate_template_card` is called; a
+       failing record is NEVER written to disk.
+    3. **Deduplication** — if *record*'s ``source_ref`` already exists in
+       the corpus, :class:`TemplateIngestError` is raised unless
+       ``force=True``.
+
+    Parameters
+    ----------
+    record:
+        The card dict to append.
+    path:
+        Path to the JSONL corpus file.
+    force:
+        If ``True``, skip the deduplication check and append even when
+        *source_ref* already exists in the corpus.
+
+    Returns
+    -------
+    Path
+        The resolved path written to.
 
     Raises
     ------
     TemplateIngestError
-        If ``record["approved"]`` is not ``True``.  Human approval is a hard
-        gate — unapproved cards MUST NOT enter the corpus.
+        If the record is not approved, fails validation, or is a duplicate
+        (and *force* is ``False``).
     """
+    # 1. Approval gate
     if not record.get("approved"):
         raise TemplateIngestError(
             "Cannot append unapproved card to corpus. "
             "Call approve_card(record) first, then retry."
         )
 
+    # 2. Validation gate — must pass BEFORE touching disk
+    validate_template_card(record)
+
+    # 3. Deduplication
     path = Path(path)
+    source_ref = record.get("source_ref", "")
+    if not force and source_ref:
+        existing = load_template_cards(path)
+        for prev in existing:
+            if prev.get("source_ref") == source_ref:
+                raise TemplateIngestError(
+                    f"Template with source_ref={source_ref!r} already exists "
+                    f"in the corpus.  Use force=True to override."
+                )
+
     line = json.dumps(record, ensure_ascii=False, sort_keys=True)
     with open(path, "a", encoding="utf-8") as f:
         f.write(line + "\n")
