@@ -5,6 +5,7 @@ import { BrandSelect } from "@/components/BrandSelect";
 import { ChatInput } from "@/components/ChatInput";
 import { ChatPromptCard } from "@/components/ChatPromptCard";
 import { StyleSelect } from "@/components/StyleSelect";
+import { MENTOR_LINES } from "@/lib/mentor-lines";
 import { pickRandom, SUGGESTIONS } from "@/lib/suggestions";
 import type { ChatResponse, LogEntry } from "@/lib/types";
 
@@ -21,6 +22,10 @@ export default function Home() {
   // Start with a deterministic value to avoid SSR hydration mismatch.
   // The real random pick is deferred to a useEffect below (client-only).
   const [suggestion, setSuggestion] = useState(SUGGESTIONS[0]);
+  const [mentorIdx, setMentorIdx] = useState(0);
+  const [mentorVisible, setMentorVisible] = useState(true);
+  const mentorTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const prefersReducedMotion = useRef(false);
   const nextId = useRef(1);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -40,6 +45,11 @@ export default function Home() {
     setSuggestion(pickRandom(SUGGESTIONS));
   }, []);
 
+  // Pick a random mentor line on client mount — avoids SSR hydration mismatch.
+  useEffect(() => {
+    setMentorIdx(Math.floor(Math.random() * MENTOR_LINES.length));
+  }, []);
+
   // ^c clears the log, terminal-style (only when nothing is selected).
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -52,6 +62,31 @@ export default function Home() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Mentor-line rotation — 12 s fade, respect prefers-reduced-motion.
+  useEffect(() => {
+    const mql = window.matchMedia("(prefers-reduced-motion: reduce)");
+    prefersReducedMotion.current = mql.matches;
+    const onPrefChange = (e: MediaQueryListEvent) => {
+      prefersReducedMotion.current = e.matches;
+    };
+    mql.addEventListener("change", onPrefChange);
+
+    if (!prefersReducedMotion.current) {
+      mentorTimer.current = setInterval(() => {
+        setMentorVisible(false);
+        setTimeout(() => {
+          setMentorIdx((i) => (i + 1) % MENTOR_LINES.length);
+          setMentorVisible(true);
+        }, 700);
+      }, 12000);
+    }
+
+    return () => {
+      mql.removeEventListener("change", onPrefChange);
+      if (mentorTimer.current) clearInterval(mentorTimer.current);
+    };
   }, []);
 
   async function submit() {
@@ -121,7 +156,12 @@ export default function Home() {
           <p className="mt-4 text-sm text-zinc-400">
             design anything. prompt. generate. done.
           </p>
-          <p className="mt-2 text-xs text-zinc-600">{TOOLS.join(" · ")}</p>
+          <p
+            className="mt-3 text-xs text-zinc-600 transition-opacity duration-700"
+            style={{ minHeight: "1.5em", opacity: mentorVisible ? 1 : 0 }}
+          >
+            {MENTOR_LINES[mentorIdx]}
+          </p>
         </header>
 
         {/* Input, centered */}
@@ -135,6 +175,7 @@ export default function Home() {
             suggestion={input ? undefined : suggestion}
             onSuggestionAccept={cycleSuggestion}
           />
+          <p className="mt-3 text-[10px] text-zinc-700">{TOOLS.join(" · ")}</p>
           <BrandSelect selected={brand} onChange={setBrand} />
           <details className="mt-2 text-xs text-zinc-600">
             <summary className="cursor-pointer select-none hover:text-zinc-400 transition-colors">
