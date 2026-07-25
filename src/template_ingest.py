@@ -50,7 +50,9 @@ TEMPLATE_CARD_SCHEMA: dict[str, Any] = {
         "concept",
         "raster_background",
         "vector_elements",
+        "hero_asset",
         "native_typography",
+        "text_blocks",
         "aspect_ratio",
         "target_tool",
         "text_zone",
@@ -67,6 +69,93 @@ TEMPLATE_CARD_SCHEMA: dict[str, Any] = {
     "properties": {
         # Core fields — same shape as PROMPT_CARD_SCHEMA.properties
         **PROMPT_CARD_SCHEMA.get("properties", {}),
+        # ── Override: vector_elements is an array, not a fixed-key object ─
+        "vector_elements": {
+            "type": "array",
+            "minItems": 0,
+            "items": {
+                "type": "object",
+                "required": ["role", "description"],
+                "properties": {
+                    "role": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "What this element does visually (e.g. 'background numeral', 'color band', 'quotation glyph').",
+                    },
+                    "description": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "What it looks like (e.g. 'oversized 4 in navy blue at 20% opacity').",
+                    },
+                    "position": {
+                        "type": "string",
+                        "description": "Where it sits on the canvas.",
+                    },
+                    "scale": {
+                        "type": "string",
+                        "description": "Size / proportion relative to the canvas.",
+                    },
+                },
+                "additionalProperties": False,
+            },
+        },
+        # ── New: hero asset (main visual subject, separate from background) ─
+        "hero_asset": {
+            "type": "object",
+            "required": ["description", "treatment", "stock_findable", "notes"],
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "description": "Main visual subject — cutout figure, photo, illustration, or empty if none.",
+                },
+                "treatment": {
+                    "type": "string",
+                    "enum": ["cutout", "full-bleed photo", "illustration", "none"],
+                    "description": "How the hero asset is treated on the canvas.",
+                },
+                "stock_findable": {
+                    "type": "boolean",
+                    "description": "True if this asset could be found in Canva Stock / Unsplash.",
+                },
+                "notes": {
+                    "type": "string",
+                    "description": "If not stock-findable, explain why (e.g. custom illustration, archival photo).",
+                },
+            },
+            "additionalProperties": False,
+        },
+        # ── New: text blocks (every visible text element, largest first) ──
+        "text_blocks": {
+            "type": "array",
+            "minItems": 0,
+            "items": {
+                "type": "object",
+                "required": ["role", "content", "zone"],
+                "properties": {
+                    "role": {
+                        "type": "string",
+                        "enum": ["eyebrow", "headline", "subtext", "quote", "caption", "display_numeral"],
+                        "description": "Typographic role of this text block.",
+                    },
+                    "content": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "The EXACT visible text in the image.",
+                    },
+                    "zone": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Where this text sits on the canvas.",
+                    },
+                    "relative_scale": {
+                        "type": "number",
+                        "minimum": 0,
+                        "description": "Size ratio relative to the largest text block (1.0 = largest).",
+                    },
+                },
+                "additionalProperties": False,
+            },
+        },
         # Provenance
         "source_type": {
             "type": "string",
@@ -141,15 +230,40 @@ rather than omitting a required field.
 - Background (raster_background) is a Canva Stock Library search query \
 (magic_media_prompt) + a negative_prompt.  Describe the visual scene \
 precisely enough that someone could find a matching Canva stock photo.
-- Vector elements (vector_elements) describe native Canva shapes: thin \
-dividers, border frames, badges, pill buttons, corner brackets, etc. \
-Use descriptive strings — each key's value is a prose instruction.
+- Vector elements (vector_elements) is an ARRAY of objects — NOT a \
+fixed-key object.  List EVERY non-photographic graphic element you can \
+see: oversized background numerals or letters, flags, symbols, colour \
+bands, quotation glyphs, frames, badges, thin rules, corner brackets, \
+pill buttons.  Do NOT limit yourself to any predefined categories.  If \
+a shape dominates the composition, it MUST appear here.  Each object \
+has role (what it does visually), description (what it looks like), \
+position (where it sits), scale (size / proportion relative to canvas).
+- Hero asset (hero_asset) is the MAIN visual subject — a cutout figure, \
+full-bleed photograph, illustration, or none.  This is SEPARATE from \
+raster_background.  If the image has a person, model, or object that is \
+the focal point, it goes here, NOT in the background description.  \
+Fields: description, treatment (one of "cutout", "full-bleed photo", \
+"illustration", "none"), stock_findable (true/false — can it be found \
+in Canva Stock?), notes (if not stock-findable, explain why).
+- Text blocks (text_blocks) is an ARRAY of EVERY visible text block on \
+the canvas.  Start with the LARGEST typographic element, whatever it \
+is — it is often a background numeral or word, not the headline.  Then \
+list every remaining text block in descending size order.  Each block \
+has: role (one of "eyebrow", "headline", "subtext", "quote", "caption", \
+"display_numeral"), content (the EXACT visible text), zone (where it \
+sits, e.g. "top 20%, centre-aligned"), relative_scale (number — ratio \
+relative to the largest block, so 1.0 = largest, 0.35 = ~⅓ the size).
 - Typography (native_typography) MUST include: headline (short, <=6 words), \
-subtext (<=14 words), color_palette (3-5 HEX codes), fonts (headline_font \
+subtext (<=14 words), color_palette (4-5 HEX codes), fonts (headline_font \
 and body_font — use real Canva built-in font names), alignment_zone (exact \
 position), headline_pt, subtext_pt, and a micro_tags object with \
 volume_line, category_line, origin_line, micro_pt, micro_color, micro_font, \
 micro_spacing.
+- Color palette (color_palette): Sample colours from the IMAGE ITSELF.  Do \
+NOT output well-known framework colours (#D32F2F, #FFFFFF, #000000) unless \
+they are truly present in the image.  Distinguish warm off-whites and creams \
+from pure white.  Provide 4-5 colours including the dominant colours of \
+any hero asset.
 - direct_action_tip is an array of 2-5 strings — step-by-step instructions \
 for recreating this design in Canva's UI.
 - canva_keywords: 2-4 short keyword strings from the Canva knowledge base.
@@ -179,10 +293,21 @@ Output ONLY this JSON shape (values in angle brackets are type placeholders \
     "negative_prompt": "no AI-generated imagery, no text, no watermark...",
     "layout_style": "<observed layout style or empty string>"
   },
-  "vector_elements": {
-    "thin_divider": "<description of a thin rule if visible, or empty string>",
-    "accent_frame": "<description of a border frame if visible, or empty string>"
+  "vector_elements": [
+    {"role": "<what it does>", "description": "<what it looks like>",
+     "position": "<where it sits>", "scale": "<size / proportion>"}
+  ],
+  "hero_asset": {
+    "description": "<main visual subject or empty string>",
+    "treatment": "<cutout|full-bleed photo|illustration|none>",
+    "stock_findable": true,
+    "notes": "<if not stock-findable, explain why; otherwise empty string>"
   },
+  "text_blocks": [
+    {"role": "<eyebrow|headline|subtext|quote|caption|display_numeral>",
+     "content": "<exact visible text>", "zone": "<position on canvas>",
+     "relative_scale": 1.0}
+  ],
   "native_typography": {
     "headline": "<exact headline text visible in the image>",
     "subtext": "<exact subtext visible in the image or empty string>",

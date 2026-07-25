@@ -63,15 +63,34 @@ PROMPT_CARD_SCHEMA: dict[str, Any] = {
             "additionalProperties": True,
         },
         # -- Layer 2: Vector Elements (CTA, badge, cutout — pure graphics) ---
+        # Accepts both legacy object (runtime pipeline) and v2 array (ingestion).
         "vector_elements": {
-            "type": "object",
-            "properties": {
-                "cta_button": {"type": "string"},
-                "badge": {"type": "string"},
-                "person_cutout": {"type": "string"},
-                "giant_typography": {"type": "string"},
-            },
-            "additionalProperties": True,
+            "anyOf": [
+                {
+                    "type": "object",
+                    "properties": {
+                        "cta_button": {"type": "string"},
+                        "badge": {"type": "string"},
+                        "person_cutout": {"type": "string"},
+                        "giant_typography": {"type": "string"},
+                    },
+                    "additionalProperties": True,
+                },
+                {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["role", "description"],
+                        "properties": {
+                            "role": {"type": "string", "minLength": 1},
+                            "description": {"type": "string", "minLength": 1},
+                            "position": {"type": "string"},
+                            "scale": {"type": "string"},
+                        },
+                        "additionalProperties": False,
+                    },
+                },
+            ]
         },
         # -- Layer 3: Native Typography (text only, separate overlay) ---------
         "native_typography": {
