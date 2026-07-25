@@ -53,7 +53,7 @@ export function BrandSelect({ selected, onChange }: BrandSelectProps) {
               : "border-zinc-700 text-zinc-500 hover:border-zinc-500"
           }`}
         >
-          {brand.name}
+          {brand.name === "Example Cafe" ? "demo brand" : brand.name}
         </button>
       ))}
     </div>
