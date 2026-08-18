@@ -5,12 +5,22 @@ import Link from "next/link";
 import { BrandSelect } from "@/components/BrandSelect";
 import { ChatInput } from "@/components/ChatInput";
 import { ChatPromptCard } from "@/components/ChatPromptCard";
+import { MockupWorkflow, type MockupPhase } from "@/components/MockupWorkflow";
 import { StyleSelect } from "@/components/StyleSelect";
 import { MENTOR_LINES } from "@/lib/mentor-lines";
 import { pickRandom, SUGGESTIONS } from "@/lib/suggestions";
+import {
+  type AttachedImage,
+  type FinalPromptResponse,
+  type ListingRole,
+  type MockupAnalyzeResponse,
+  type RefinedStrategy,
+} from "@/lib/mockup-types";
 import type { ChatResponse, LogEntry } from "@/lib/types";
 
 const TOOLS = ["canva", "magic media", "dall-e 3", "midjourney"];
+
+const BUSY_PHASES: readonly MockupPhase[] = ["analyzing", "refining", "generating"];
 
 export default function Home() {
   const [input, setInput] = useState("");
@@ -30,6 +40,17 @@ export default function Home() {
   const nextId = useRef(1);
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  // ── Mockup Director workflow state ──
+  const [image, setImage] = useState<AttachedImage | null>(null);
+  const [workflowPhase, setWorkflowPhase] = useState<MockupPhase | "idle">("idle");
+  const [analysis, setAnalysis] = useState<MockupAnalyzeResponse | null>(null);
+  const [selectedDirection, setSelectedDirection] = useState<string | null>(null);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [listingRole, setListingRole] = useState<ListingRole>("hero");
+  const [strategy, setStrategy] = useState<RefinedStrategy | null>(null);
+  const [finalPrompt, setFinalPrompt] = useState<FinalPromptResponse | null>(null);
+  const [workflowError, setWorkflowError] = useState<string | null>(null);
+
   const cycleSuggestion = useCallback(() => {
     setSuggestion((prev) => {
       const idx = SUGGESTIONS.indexOf(prev);
@@ -39,7 +60,7 @@ export default function Home() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [entries, loading]);
+  }, [entries, loading, workflowPhase]);
 
   // Defer random suggestion to client mount only — avoids SSR hydration mismatch.
   useEffect(() => {
@@ -50,6 +71,14 @@ export default function Home() {
   useEffect(() => {
     setMentorIdx(Math.floor(Math.random() * MENTOR_LINES.length));
   }, []);
+
+  // Revoke the object URL backing the attached artwork preview when it changes
+  // or is cleared, so we don't leak memory.
+  useEffect(() => {
+    return () => {
+      if (image) URL.revokeObjectURL(image.url);
+    };
+  }, [image]);
 
   // ^c clears the log, terminal-style (only when nothing is selected).
   useEffect(() => {
@@ -90,10 +119,31 @@ export default function Home() {
     };
   }, []);
 
-  async function submit() {
-    const concept = input.trim();
-    if (!concept || loading) return;
+  function handleImageChange(file: File | null) {
+    if (!file) {
+      setImage(null);
+      setWorkflowError(null);
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setImage({ file, name: file.name, url, mimeType: file.type });
+    setWorkflowError(null);
+  }
 
+  async function submit() {
+    if (loading) return;
+    const concept = input.trim();
+    if (!concept && !image) return;
+
+    if (image) {
+      await submitMockup(concept);
+    } else {
+      await submitChat(concept);
+    }
+  }
+
+  // ── Legacy text-only chat flow (unchanged behaviour). ──
+  async function submitChat(concept: string) {
     setHistory((h) => [...h, concept]);
     setHistoryIdx(null);
     setInput("");
@@ -139,12 +189,125 @@ export default function Home() {
     }
   }
 
+  // ── Mockup Director workflow: analyze → refine → generate. ──
+  async function submitMockup(text: string) {
+    if (!image) return;
+    setHistory((h) => [...h, text || `[mockup] ${image.name}`]);
+    setHistoryIdx(null);
+    setInput("");
+    setWorkflowPhase("analyzing");
+    setWorkflowError(null);
+    setAnalysis(null);
+    setStrategy(null);
+    setFinalPrompt(null);
+    setSelectedDirection(null);
+    setAnswers({});
+    setListingRole("hero");
+    cycleSuggestion();
+
+    const form = new FormData();
+    form.append("file", image.file, image.name);
+    form.append("marketplace", "Etsy");
+    if (text) form.append("creative_direction", text);
+
+    try {
+      const res = await fetch("/api/mockup/analyze", { method: "POST", body: form });
+      const data = await res.json();
+      if (!res.ok) {
+        setWorkflowPhase("error");
+        setWorkflowError(data?.detail ?? `analysis failed (${res.status})`);
+        return;
+      }
+      const payload = data as MockupAnalyzeResponse;
+      setAnalysis(payload);
+      setWorkflowPhase("analysis");
+      // Preselect the recommended direction (user can still change it).
+      const recommended = payload.recommended_directions?.find((d) => d.recommended);
+      if (recommended) setSelectedDirection(recommended.id);
+    } catch {
+      setWorkflowPhase("error");
+      setWorkflowError("Could not reach the mockup director.");
+    }
+  }
+
+  async function refine() {
+    if (!analysis || !selectedDirection) return;
+    setWorkflowPhase("refining");
+    setWorkflowError(null);
+    try {
+      const res = await fetch("/api/mockup/refine", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          analysis,
+          selected_direction: selectedDirection,
+          answers,
+          listing_role: listingRole,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setWorkflowPhase("error");
+        setWorkflowError(data?.detail ?? `refine failed (${res.status})`);
+        return;
+      }
+      setStrategy(data as RefinedStrategy);
+      setWorkflowPhase("strategy");
+    } catch {
+      setWorkflowPhase("error");
+      setWorkflowError("Could not reach the mockup director.");
+    }
+  }
+
+  async function generate() {
+    if (!analysis || !selectedDirection) return;
+    setWorkflowPhase("generating");
+    setWorkflowError(null);
+    try {
+      const res = await fetch("/api/mockup/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          analysis,
+          selected_direction: selectedDirection,
+          answers,
+          listing_role: listingRole,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setWorkflowPhase("error");
+        setWorkflowError(data?.detail ?? `generate failed (${res.status})`);
+        return;
+      }
+      setFinalPrompt(data as FinalPromptResponse);
+      setWorkflowPhase("done");
+    } catch {
+      setWorkflowPhase("error");
+      setWorkflowError("Could not reach the mockup director.");
+    }
+  }
+
+  function resetWorkflow() {
+    setImage(null);
+    setWorkflowPhase("idle");
+    setAnalysis(null);
+    setStrategy(null);
+    setFinalPrompt(null);
+    setSelectedDirection(null);
+    setAnswers({});
+    setListingRole("hero");
+    setWorkflowError(null);
+  }
+
   function historyPrev() {
     if (history.length === 0) return;
     const idx = historyIdx === null ? history.length - 1 : Math.max(0, historyIdx - 1);
     setHistoryIdx(idx);
     setInput(history[idx]);
   }
+
+  const busy = loading || BUSY_PHASES.includes(workflowPhase as MockupPhase);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -172,9 +335,11 @@ export default function Home() {
             onChange={setInput}
             onSubmit={submit}
             onHistoryPrev={historyPrev}
-            disabled={loading}
+            disabled={busy}
             suggestion={input ? undefined : suggestion}
             onSuggestionAccept={cycleSuggestion}
+            image={image}
+            onImageChange={handleImageChange}
           />
           <p className="mt-3 text-[10px] text-zinc-700">{TOOLS.join(" · ")}</p>
           <BrandSelect selected={brand} onChange={setBrand} />
@@ -196,6 +361,42 @@ export default function Home() {
 
         {/* Terminal log — flows top to bottom, left-bordered entries */}
         <section className="mx-auto mt-10 w-full max-w-2xl space-y-6 pb-10">
+          {/* Mockup Director workflow, in the same terminal log area */}
+          {workflowPhase !== "idle" && (
+            <div className="space-y-4">
+              {image && (
+                <div className="border-l border-zinc-700 pl-4">
+                  <p className="text-xs uppercase tracking-widest text-zinc-500">
+                    attached artwork
+                  </p>
+                  <img
+                    src={image.url}
+                    alt={image.name}
+                    className="mt-2 max-h-48 w-auto border border-zinc-700"
+                    data-testid="mockup-image-preview"
+                  />
+                </div>
+              )}
+              <MockupWorkflow
+                phase={workflowPhase as MockupPhase}
+                analysis={analysis}
+                selectedDirectionId={selectedDirection}
+                answers={answers}
+                listingRole={listingRole}
+                strategy={strategy}
+                finalPrompt={finalPrompt}
+                error={workflowError}
+                onSelectDirection={setSelectedDirection}
+                onAnswer={(key, value) =>
+                  setAnswers((prev) => ({ ...prev, [key]: value }))
+                }
+                onListingRole={setListingRole}
+                onRefine={refine}
+                onGenerate={generate}
+                onReset={resetWorkflow}
+              />
+            </div>
+          )}
           {entries.map((entry) => (
             <ChatPromptCard
               key={entry.id}
