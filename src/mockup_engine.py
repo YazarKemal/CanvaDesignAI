@@ -178,7 +178,7 @@ SCENE_ARCHETYPES: dict[str, dict[str, Any]] = {
         "mode": "physical",
         "context": {
             "environment": "gallery wall or framed wall display in a styled room",
-            "surface_or_frame": "poster paper in a thin frame",
+            "surface_or_frame": "printed poster paper in a thin frame",
             "lighting": "soft directional light",
             "camera": "eye-level editorial, 50mm lens",
             "composition": "poster centered with clean wall negative space",
