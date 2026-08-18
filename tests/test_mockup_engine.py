@@ -350,7 +350,7 @@ def _noise_png(width: int = 1024, height: int = 1536) -> bytes:
     return buf.getvalue()
 
 
-def _noise_rgba_png(width: int = 400, height: int = 600) -> bytes:
+def _noise_rgba_png(width: int = 1024, height: int = 1536) -> bytes:
     img = Image.frombytes("RGBA", (width, height), os.urandom(width * height * 4))
     buf = BytesIO()
     img.save(buf, format="PNG")
