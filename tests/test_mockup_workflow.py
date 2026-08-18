@@ -317,3 +317,78 @@ def test_generate_usage_map_covers_all_directions():
         result = build_final_prompt(analysis, "moody_collector", listing_role)
         assert result["recommended_usage"]
         assert PRESERVATION_CLAUSE in result["final_prompt"]
+
+
+# --------------------------------------------------------------------------- #
+# Final prompt is built from the refined strategy (no legacy contradictions).
+# --------------------------------------------------------------------------- #
+
+
+def test_poster_direction_environment_is_authoritative():
+    analysis = _valid_analysis(product_category="poster")
+    result = build_final_prompt(analysis, "boutique_cinema_lobby", "hero")
+    assert "Environment: dim cinema lobby with marquee light" in result["final_prompt"]
+
+
+def test_framed_answer_yields_framed_prompt_no_unframed():
+    result = build_final_prompt(_valid_analysis(), "moody_collector", "hero", {"framing": "Framed"})
+    assert "slim frame" in result["final_prompt"]
+    assert "unframed" not in result["final_prompt"].lower()
+
+
+def test_unframed_answer_yields_unframed_prompt_no_framed():
+    result = build_final_prompt(
+        _valid_analysis(), "moody_collector", "hero", {"framing": "Unframed"}
+    )
+    assert "unframed" in result["final_prompt"]
+    assert "slim frame" not in result["final_prompt"]
+    assert "in a frame" not in result["final_prompt"]
+
+
+def test_darker_cinematic_changes_lighting_and_styling():
+    result = build_final_prompt(
+        _valid_analysis(), "moody_collector", "hero", {"mood_tone": "Darker cinematic"}
+    )
+    assert "darker cinematic lighting" in result["final_prompt"]
+    assert "dark cinematic styling" in result["final_prompt"]
+
+
+def test_final_prompt_fields_agree_with_refine_strategy():
+    analysis = _valid_analysis()
+    answers = {"framing": "Framed", "setting": "Home interior"}
+    strategy = refine_strategy(analysis, "moody_collector", answers, "hero")
+    result = build_final_prompt(analysis, "moody_collector", "hero", answers)
+    prompt = result["final_prompt"]
+    assert strategy["environment"] in prompt
+    assert strategy["surface_or_frame"] in prompt
+    assert strategy["lighting"] in prompt
+    assert strategy["styling_notes"] in prompt
+    assert result["direction"] == strategy["direction"]
+    assert result["listing_role"] == strategy["listing_role"]
+
+
+def test_model_mockup_cannot_override_user_answer():
+    analysis = _valid_analysis()
+    # A conflicting model-authored scene must be ignored by the final prompt.
+    analysis["mockups"] = [
+        {"type": "hero", "prompt": "Artwork displayed unframed on a gallery wall", "negative_prompt": "x"}
+    ]
+    result = build_final_prompt(analysis, "moody_collector", "hero", {"framing": "Framed"})
+    assert "unframed" not in result["final_prompt"]
+    assert "slim frame" in result["final_prompt"]
+
+
+def test_poster_setting_question_reflects_recommended_direction():
+    analysis = _valid_analysis(product_category="poster")
+    best = next(d for d in analysis["recommended_directions"] if d["recommended"])
+    questions = clarifying_questions_for(analysis["asset_analysis"], best)
+    setting = next(q for q in questions if q["key"] == "setting")
+    assert "Boutique Cinema Lobby" in setting["question"]
+
+
+def test_questions_stay_within_three_to_five_with_direction():
+    analysis = _valid_analysis(product_category="poster")
+    best = next(d for d in analysis["recommended_directions"] if d["recommended"])
+    questions = clarifying_questions_for(analysis["asset_analysis"], best)
+    assert 3 <= len(questions) <= 5
+    assert any(q["key"] == "setting" for q in questions)

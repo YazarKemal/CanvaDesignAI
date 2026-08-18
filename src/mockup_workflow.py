@@ -29,6 +29,7 @@ performed inside ``analyze_artwork`` (reused from the engine).
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from src.mockup_engine import (
@@ -209,6 +210,7 @@ REFINEMENT_RULES: dict[str, list[tuple[str, dict[str, str]]]] = {
     "setting": [
         ("home interior", {"environment": "realistic styled home interior"}),
         ("studio", {"environment": "clean studio scene"}),
+        ("collector interior", {"environment": "collector-style interior"}),
         ("flat-lay tabletop", {"environment": "styled tabletop flat-lay"}),
         ("wall scene", {"environment": "wall display scene"}),
         ("flat-lay", {"environment": "elegant flat-lay"}),
@@ -385,10 +387,33 @@ def _mood_question(analysis: dict[str, Any]) -> dict[str, Any] | None:
     return None
 
 
-def clarifying_questions_for(analysis: dict[str, Any]) -> list[dict[str, Any]]:
-    """Return 3-5 category- and mood-aware clarifying questions."""
+def _contextual_setting_question(best_direction: dict[str, Any]) -> dict[str, Any]:
+    title = best_direction.get("title") or "recommended"
+    return _question(
+        "setting",
+        f"Would you like to keep the {title} setting, or move it elsewhere?",
+        [f"Keep {title} setting", "Collector interior", "Clean studio"],
+    )
+
+
+def _best_direction(analysis: dict[str, Any]) -> dict[str, Any] | None:
+    for direction in analysis.get("recommended_directions") or []:
+        if direction.get("recommended"):
+            return direction
+    return None
+
+
+def clarifying_questions_for(
+    analysis: dict[str, Any], best_direction: dict[str, Any] | None = None
+) -> list[dict[str, Any]]:
+    """Return 3-5 category-, mood- and direction-aware clarifying questions."""
     category = analysis.get("product_category", "generic")
     questions = QUESTION_BANK.get(category, QUESTION_BANK["generic"])[:5]
+    if best_direction is not None and best_direction.get("title"):
+        questions = [
+            _contextual_setting_question(best_direction) if q["key"] == "setting" else q
+            for q in questions
+        ]
     mood_question = _mood_question(analysis)
     if mood_question is not None and len(questions) < 5:
         questions = questions[:4] + [mood_question]
@@ -448,7 +473,7 @@ def analyze_artwork(
         else None
     )
     result["clarification_needed"] = True
-    result["clarifying_questions"] = clarifying_questions_for(asset_analysis)
+    result["clarifying_questions"] = clarifying_questions_for(asset_analysis, best)
     return result
 
 
@@ -466,7 +491,8 @@ def _apply_refinements(
             continue
         lowered = str(answer).lower()
         for substring, overrides in REFINEMENT_RULES.get(key, []):
-            if substring in lowered:
+            # Word-boundary match so "unframed" is never caught by "framed".
+            if re.search(rf"\b{re.escape(substring)}\b", lowered):
                 fields.update(overrides)
                 applied[key] = str(answer)
                 break
@@ -483,17 +509,25 @@ def _remaining_questions(
     if "mood_tone" not in resolved and answered & {"tone", "lighting"}:
         resolved.add("mood_tone")
     asset_analysis = analysis.get("asset_analysis") or analysis
-    return [q for q in clarifying_questions_for(asset_analysis) if q["key"] not in resolved]
+    return [
+        q
+        for q in clarifying_questions_for(asset_analysis, _best_direction(analysis))
+        if q["key"] not in resolved
+    ]
 
 
-def refine_strategy(
+def _build_strategy(
     analysis: dict[str, Any],
     selected_direction: str,
-    answers: dict[str, Any] | None = None,
-    listing_role: str = "hero",
+    answers: dict[str, Any],
+    listing_role: str,
 ) -> dict[str, Any]:
-    """Refine a strategy from the selected creative direction + answers + role."""
-    answers = answers or {}
+    """Compute refined scene fields from direction > archetype > answers.
+
+    This is the single source of truth shared by ``refine_strategy`` and
+    ``build_final_prompt`` so the final prompt can never contradict the
+    refined strategy. The model-authored mockup text is never consulted here.
+    """
     if listing_role not in MOCKUP_TYPES:
         raise MockupEngineError(f"Unknown listing role: {listing_role}")
 
@@ -531,8 +565,20 @@ def refine_strategy(
         "realism_notes": fields["realism_notes"],
         "styling_notes": fields["styling_notes"],
         "applied_answers": applied,
-        "remaining_questions": _remaining_questions(analysis, answers),
     }
+
+
+def refine_strategy(
+    analysis: dict[str, Any],
+    selected_direction: str,
+    answers: dict[str, Any] | None = None,
+    listing_role: str = "hero",
+) -> dict[str, Any]:
+    """Refine a strategy from the selected creative direction + answers + role."""
+    answers = answers or {}
+    strategy = _build_strategy(analysis, selected_direction, answers, listing_role)
+    strategy["remaining_questions"] = _remaining_questions(analysis, answers)
+    return strategy
 
 
 # --------------------------------------------------------------------------- #
@@ -545,58 +591,64 @@ def _answers_to_clause(answers: dict[str, Any]) -> str:
     return "; ".join(parts)
 
 
+def _assemble_prompt(
+    strategy: dict[str, Any],
+    analysis: dict[str, Any],
+    answers: dict[str, Any],
+) -> str:
+    """Build a coherent art-direction instruction from the refined strategy.
+
+    The model-authored mockup text is deliberately NOT consulted here, so a
+    legacy scene cannot reintroduce a contradictory surface/environment.
+    """
+    asset = analysis.get("asset_analysis") or {}
+    category = strategy["category"]
+    label = SCENE_ARCHETYPES.get(category, SCENE_ARCHETYPES["generic"])["label"]
+    role = strategy["listing_role"].replace("_", " ")
+    mood = asset.get("mood") or []
+    mood_text = " and ".join(mood) if mood else strategy["creative_mood"]
+    visual_style = asset.get("visual_style") or ""
+    style_suffix = f" ({visual_style})" if visual_style else ""
+    lines = [
+        f"{label} {role} mockup of the uploaded artwork.",
+        f"Creative direction: {strategy['direction']['title']} ({strategy['creative_mood']}).",
+        f"Environment: {strategy['environment']}.",
+        f"Surface or frame: {strategy['surface_or_frame']}.",
+        f"Lighting: {strategy['lighting']}.",
+        f"Camera: {strategy['camera']}.",
+        f"Composition: {strategy['composition']}.",
+        f"Artwork placement: {strategy['artwork_placement']}.",
+        f"Realism: {strategy['realism_notes']}.",
+        f"Styling: {strategy['styling_notes']}.",
+        f"Artwork mood/style: {mood_text}{style_suffix}.",
+    ]
+    prompt = " ".join(lines)
+    clause = _answers_to_clause(answers)
+    if clause:
+        prompt = f"{prompt} Client preferences: {clause}."
+    return _inject_preservation(prompt)
+
+
 def build_final_prompt(
     analysis: dict[str, Any],
     selected_direction: str,
     listing_role: str = "hero",
     answers: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Emit the final prompt for a creative direction + listing role.
+    """Emit the final prompt from the SAME refined strategy as ``refine_strategy``.
 
-    Combines the uploaded-artwork analysis, the refined creative direction, the
-    requested listing role, the deterministic category archetype and the
-    preservation constraints.
+    Combines the selected creative direction, listing-role archetype, user
+    answer overrides, asset analysis and the preservation clause. Precedence is
+    explicit: user answers > creative direction > listing-role archetype.
     """
     answers = answers or {}
-    if listing_role not in MOCKUP_TYPES:
-        raise MockupEngineError(f"Unknown listing role: {listing_role}")
-
-    direction = _find_direction(analysis, selected_direction)
-    category = analysis.get("asset_analysis", {}).get("product_category", "generic")
-
-    chosen = next(
-        (m for m in analysis.get("mockups", []) if m.get("type") == listing_role),
-        None,
-    )
-    if chosen is not None:
-        prompt = _inject_preservation(chosen.get("prompt", ""))
-        negative_prompt = chosen.get("negative_prompt", "")
-    else:
-        archetype = _archetype_for(category, listing_role)
-        base = (
-            f"Photorealistic {listing_role.replace('_', ' ')} mockup: "
-            f"{archetype['direction']}. Match the artwork's style and lighting."
-        )
-        prompt = _inject_preservation(base)
-        negative_prompt = NEGATIVE_SUFFIX
-
-    creative_clause = (
-        f"Creative direction: {direction['title']} ({direction['mood']}; "
-        f"{direction['presentation_style']}; {direction['environment']})."
-    )
-    prompt = f"{prompt} {creative_clause}".strip()
-
-    if answers:
-        clause = _answers_to_clause(answers)
-        if clause:
-            prompt = f"{prompt} Client preferences: {clause}."
-
+    strategy = _build_strategy(analysis, selected_direction, answers, listing_role)
     return {
-        "direction": {"id": direction["id"], "title": direction["title"]},
+        "direction": strategy["direction"],
         "listing_role": listing_role,
-        "category": category,
-        "final_prompt": prompt,
-        "negative_prompt": negative_prompt,
+        "category": strategy["category"],
+        "final_prompt": _assemble_prompt(strategy, analysis, answers),
+        "negative_prompt": NEGATIVE_SUFFIX,
         "preservation_notes": list(PRESERVATION_NOTES),
         "recommended_usage": USAGE_MAP.get(listing_role, "Listing image"),
     }
