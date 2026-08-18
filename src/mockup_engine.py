@@ -500,6 +500,111 @@ def _image_metadata(image_bytes: bytes) -> tuple[int, int, str]:
 
 
 # --------------------------------------------------------------------------- #
+# Vision payload optimisation.
+# --------------------------------------------------------------------------- #
+#
+# Termux/Android closes connections on very large multipart bodies (a 4.7 MB
+# PNG reliably fails with "Connection reset by peer"; the same image as a ~1.1 MB
+# JPEG succeeds). The original artwork is always kept byte-for-byte untouched:
+# pixel metadata, dimensions, aspect ratio and the dominant palette are derived
+# from the ORIGINAL bytes. Only the in-memory copy sent to OpenAI Vision is
+# resized/compressed, so this is a product-side preprocessing decision that stays
+# out of the transport/vision-client layer.
+
+VISION_MAX_LONG_EDGE = 1536
+VISION_TARGET_BYTES = 1_500_000
+VISION_QUALITY_STEPS = (85, 78, 70)
+VISION_DOWNSHIFT = 0.85
+VISION_COMPOSITE_BACKGROUND = (255, 255, 255)
+
+
+def _needs_optimisation(image_bytes: bytes, width: int, height: int) -> bool:
+    """A large/heavy image needs a Vision copy; a reasonably small one is kept."""
+    return len(image_bytes) > VISION_TARGET_BYTES or max(width, height) > VISION_MAX_LONG_EDGE
+
+
+def _composite_for_encoding(img: Image.Image) -> Image.Image:
+    """Flatten transparency onto a neutral background, then convert to RGB."""
+    has_alpha = img.mode in ("RGBA", "LA") or (
+        img.mode == "P" and "transparency" in img.info
+    )
+    if has_alpha:
+        rgba = img.convert("RGBA")
+        background = Image.new("RGBA", rgba.size, VISION_COMPOSITE_BACKGROUND + (255,))
+        return Image.alpha_composite(background, rgba).convert("RGB")
+    return img.convert("RGB")
+
+
+def _encode_jpeg_with_target(img: Image.Image) -> tuple[bytes, str, int, int]:
+    """Encode a JPEG within the target byte budget, dropping quality then size."""
+    for quality in VISION_QUALITY_STEPS:
+        buf = BytesIO()
+        img.save(buf, format="JPEG", quality=quality)
+        data = buf.getvalue()
+        if len(data) <= VISION_TARGET_BYTES:
+            return data, "image/jpeg", img.width, img.height
+
+    resized = img
+    while True:
+        nw = max(1, round(resized.width * VISION_DOWNSHIFT))
+        nh = max(1, round(resized.height * VISION_DOWNSHIFT))
+        if nw == resized.width and nh == resized.height:
+            break
+        resized = resized.resize((nw, nh), Image.LANCZOS)
+        buf = BytesIO()
+        resized.save(buf, format="JPEG", quality=VISION_QUALITY_STEPS[-1])
+        data = buf.getvalue()
+        if len(data) <= VISION_TARGET_BYTES:
+            return data, "image/jpeg", resized.width, resized.height
+    return data, "image/jpeg", resized.width, resized.height
+
+
+def _prepare_vision_image(
+    image_bytes: bytes, mime_type: str
+) -> tuple[bytes, str, dict[str, Any]]:
+    """Build a compact in-memory analysis copy for Vision.
+
+    Returns ``(vision_bytes, vision_mime_type, meta)``. The original bytes are
+    never mutated; ``meta`` carries diagnostics for the ``source`` payload.
+    """
+    original_size = len(image_bytes)
+    with Image.open(BytesIO(image_bytes)) as src:
+        src.load()
+        width, height = src.size
+
+        if not _needs_optimisation(image_bytes, width, height):
+            return image_bytes, mime_type, {
+                "original_byte_size": original_size,
+                "vision_byte_size": original_size,
+                "vision_mime_type": mime_type,
+                "vision_width": width,
+                "vision_height": height,
+                "vision_optimized": False,
+            }
+
+        working = _composite_for_encoding(src)
+        longest = max(width, height)
+        if longest > VISION_MAX_LONG_EDGE:
+            scale = VISION_MAX_LONG_EDGE / longest
+            working = working.resize(
+                (max(1, round(width * scale)), max(1, round(height * scale))),
+                Image.LANCZOS,
+            )
+        vision_bytes, vision_mime_type, vision_width, vision_height = (
+            _encode_jpeg_with_target(working)
+        )
+
+    return vision_bytes, vision_mime_type, {
+        "original_byte_size": original_size,
+        "vision_byte_size": len(vision_bytes),
+        "vision_mime_type": vision_mime_type,
+        "vision_width": vision_width,
+        "vision_height": vision_height,
+        "vision_optimized": True,
+    }
+
+
+# --------------------------------------------------------------------------- #
 # Prompt builder.
 # --------------------------------------------------------------------------- #
 
@@ -682,6 +787,7 @@ def _normalise_and_validate(
     aspect_ratio: str,
     mime_type: str,
     product_type_hint: str = "",
+    vision_meta: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise MockupEngineError("Vision response must be a JSON object.")
@@ -811,6 +917,8 @@ def _normalise_and_validate(
         "dominant_palette": palette,
         "product_category": category,
     }
+    if vision_meta:
+        payload["source"].update(vision_meta)
     payload["prompt_version"] = "mockup-director-v2"
     return payload
 
@@ -865,9 +973,14 @@ def generate_mockup_set(
         category=pre_category,
     )
 
+    # Only the Vision copy is optimised; metadata/palette stay on the original.
+    vision_bytes, vision_mime_type, vision_meta = _prepare_vision_image(
+        image_bytes, mime_type
+    )
+
     client = vision_client or OpenAIVisionClient()
     try:
-        raw = client.deconstruct_image(image_bytes, mime_type, prompt=prompt)
+        raw = client.deconstruct_image(vision_bytes, vision_mime_type, prompt=prompt)
     except VisionClientError as exc:
         raise MockupEngineError(str(exc)) from exc
 
@@ -881,6 +994,7 @@ def generate_mockup_set(
             aspect_ratio=aspect_ratio,
             mime_type=mime_type,
             product_type_hint=product_type_hint,
+            vision_meta=vision_meta,
         )
 
     try:

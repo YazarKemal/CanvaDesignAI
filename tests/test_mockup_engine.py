@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from io import BytesIO
 
 import pytest
@@ -12,9 +13,12 @@ from src.mockup_engine import (
     ART_DIRECTION_FIELDS,
     MOCKUP_TYPES,
     PRESERVATION_CLAUSE,
+    VISION_TARGET_BYTES,
     MockupEngineError,
     _archetype_for,
     _assert_scene_diversity,
+    _composite_for_encoding,
+    _prepare_vision_image,
     _presentation_is_appropriate,
     _resolve_product_category,
     generate_mockup_set,
@@ -111,6 +115,20 @@ class _FakeVisionClient:
     def repair_json(self, card_json: str, error_message: str, *, prompt: str = "") -> str:
         self.repair_called = True
         return json.dumps(self.repaired if self.repaired is not None else self.payload)
+
+
+class _RecordingVisionClient(_FakeVisionClient):
+    """A fake that also records the exact bytes/mime it was handed for Vision."""
+
+    def __init__(self, payload: dict, repaired: dict | None = None):
+        super().__init__(payload, repaired)
+        self.received_bytes: bytes | None = None
+        self.received_mime: str | None = None
+
+    def deconstruct_image(self, image_bytes: bytes, mime_type: str, *, prompt: str) -> str:
+        self.received_bytes = image_bytes
+        self.received_mime = mime_type
+        return super().deconstruct_image(image_bytes, mime_type, prompt=prompt)
 
 
 # --------------------------------------------------------------------------- #
@@ -318,3 +336,86 @@ def test_distinct_scenes_pass_diversity():
             "close_up": "Macro detail of the paper texture.",
         }
     )
+
+
+# --------------------------------------------------------------------------- #
+# Vision payload optimisation.
+# --------------------------------------------------------------------------- #
+
+
+def _noise_png(width: int = 1024, height: int = 1536) -> bytes:
+    img = Image.frombytes("RGB", (width, height), os.urandom(width * height * 3))
+    buf = BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _noise_rgba_png(width: int = 400, height: int = 600) -> bytes:
+    img = Image.frombytes("RGBA", (width, height), os.urandom(width * height * 4))
+    buf = BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def test_large_png_is_compressed_for_vision():
+    data = _noise_png()
+    vision_bytes, mime, meta = _prepare_vision_image(data, "image/png")
+    assert mime == "image/jpeg"
+    assert meta["vision_optimized"] is True
+    assert meta["vision_byte_size"] < meta["original_byte_size"]
+    assert meta["vision_byte_size"] <= VISION_TARGET_BYTES
+    assert len(vision_bytes) <= VISION_TARGET_BYTES
+
+
+def test_vision_optimisation_keeps_original_metadata_and_palette():
+    data = _noise_png(1024, 1536)
+    fake = _RecordingVisionClient(_valid_payload())
+    result = generate_mockup_set(data, "image/png", vision_client=fake)  # type: ignore[arg-type]
+
+    source = result["source"]
+    # Everything pixel-derived stays anchored to the ORIGINAL bytes.
+    assert source["width"] == 1024 and source["height"] == 1536
+    assert result["asset_analysis"]["orientation"] == "portrait"
+    assert result["asset_analysis"]["aspect_ratio"] == "2:3"
+    assert result["asset_analysis"]["dominant_colors"] == source["dominant_palette"]
+
+    # The Vision copy is optimised and diagnostics are surfaced (no base64).
+    assert source["vision_optimized"] is True
+    assert source["vision_mime_type"] == "image/jpeg"
+    assert source["original_byte_size"] == len(data)
+    assert source["vision_byte_size"] < len(data)
+    assert source["vision_byte_size"] <= VISION_TARGET_BYTES
+    assert "base64" not in {key.lower() for key in source}
+
+    # The fake Vision client actually received the optimised JPEG copy.
+    assert fake.received_mime == "image/jpeg"
+    assert fake.received_bytes is not None
+    assert len(fake.received_bytes) == source["vision_byte_size"]
+    assert len(fake.received_bytes) < len(data)
+
+
+def test_small_image_not_unnecessarily_upscaled():
+    img = Image.new("RGB", (120, 160), (200, 30, 40))
+    buf = BytesIO()
+    img.save(buf, format="PNG")
+    data = buf.getvalue()
+
+    _, mime, meta = _prepare_vision_image(data, "image/png")
+    assert meta["vision_optimized"] is False
+    assert mime == "image/png"
+    assert meta["vision_width"] == 120 and meta["vision_height"] == 160
+    assert meta["vision_byte_size"] == meta["original_byte_size"]
+
+
+def test_transparent_image_composited_safely():
+    # A large transparent image must not crash and must be flattened to RGB JPEG.
+    data = _noise_rgba_png()
+    vision_bytes, mime, meta = _prepare_vision_image(data, "image/png")
+    assert mime == "image/jpeg"
+    assert meta["vision_optimized"] is True
+    assert len(vision_bytes) <= VISION_TARGET_BYTES
+
+
+def test_composite_flattens_alpha_to_rgb():
+    img = Image.new("RGBA", (12, 12), (255, 0, 0, 128))
+    assert _composite_for_encoding(img).mode == "RGB"
