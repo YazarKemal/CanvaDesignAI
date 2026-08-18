@@ -341,16 +341,41 @@ def creative_directions_from(analysis: dict[str, Any]) -> list[dict[str, Any]]:
     return directions
 
 
+_DARK_TERMS = ("dark", "moody", "noir", "cinematic", "dramatic")
+_BRIGHT_TERMS = ("bright", "minimal", "clean", "modern")
+
+
 def _mood_question(analysis: dict[str, Any]) -> dict[str, Any] | None:
-    text = _analysis_text(analysis)
-    if any(keyword in text for keyword in ("dark", "moody", "noir", "cinematic", "dramatic")):
+    """Ask a mood-aware question, prioritising explicit mood/style over summary."""
+    mood = " ".join(analysis.get("mood") or [])
+    visual_style = analysis.get("visual_style") or ""
+    primary = f"{mood} {visual_style}".lower()
+
+    if any(keyword in primary for keyword in _DARK_TERMS):
         return _question(
             "mood_tone",
             "For this design I'd suggest a dark, dramatic interior. "
             "Would you prefer darker cinematic or a cleaner gallery-style look?",
             ["Darker cinematic", "Cleaner gallery-style"],
         )
-    if any(keyword in text for keyword in ("bright", "minimal", "clean", "modern")):
+    if any(keyword in primary for keyword in _BRIGHT_TERMS):
+        return _question(
+            "mood_tone",
+            "For this design a clean, bright look suits. "
+            "Would you prefer a clean gallery or a warm home setting?",
+            ["Clean gallery", "Warm home"],
+        )
+
+    # Fallback: only when mood/style give no clear signal, consult the summary.
+    summary = (analysis.get("content_summary") or "").lower()
+    if any(keyword in summary for keyword in _DARK_TERMS):
+        return _question(
+            "mood_tone",
+            "For this design I'd suggest a dark, dramatic interior. "
+            "Would you prefer darker cinematic or a cleaner gallery-style look?",
+            ["Darker cinematic", "Cleaner gallery-style"],
+        )
+    if any(keyword in summary for keyword in _BRIGHT_TERMS):
         return _question(
             "mood_tone",
             "For this design a clean, bright look suits. "
@@ -452,8 +477,13 @@ def _remaining_questions(
     analysis: dict[str, Any], answers: dict[str, Any]
 ) -> list[dict[str, Any]]:
     answered = {str(k) for k in answers if answers.get(k) not in (None, "", False)}
+    resolved = set(answered)
+    # A mood_tone answer is also satisfied by a semantically overlapping answer
+    # to `tone` or `lighting`.
+    if "mood_tone" not in resolved and answered & {"tone", "lighting"}:
+        resolved.add("mood_tone")
     asset_analysis = analysis.get("asset_analysis") or analysis
-    return [q for q in clarifying_questions_for(asset_analysis) if q["key"] not in answered]
+    return [q for q in clarifying_questions_for(asset_analysis) if q["key"] not in resolved]
 
 
 def refine_strategy(
