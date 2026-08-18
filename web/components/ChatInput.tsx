@@ -1,6 +1,11 @@
 "use client";
 
-import { KeyboardEvent, useRef } from "react";
+import { ChangeEvent, KeyboardEvent, useRef, useState } from "react";
+import {
+  ALLOWED_IMAGE_TYPES,
+  MAX_IMAGE_BYTES,
+  type AttachedImage,
+} from "@/lib/mockup-types";
 
 interface ChatInputProps {
   value: string;
@@ -12,6 +17,10 @@ interface ChatInputProps {
   suggestion?: string;
   /** Called after the user accepts the current suggestion (→ key). */
   onSuggestionAccept?: () => void;
+  /** Currently attached artwork (from the parent); null when none. */
+  image?: AttachedImage | null;
+  /** Called with the newly attached file, or null to clear. */
+  onImageChange?: (file: File | null) => void;
 }
 
 export function ChatInput({
@@ -22,8 +31,12 @@ export function ChatInput({
   disabled,
   suggestion,
   onSuggestionAccept,
+  image,
+  onImageChange,
 }: ChatInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [imageError, setImageError] = useState<string | null>(null);
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === "Enter") {
@@ -45,6 +58,25 @@ export function ChatInput({
         }
       });
     }
+  }
+
+  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    event.target.value = ""; // allow re-selecting the same file
+    setImageError(null);
+
+    if (!file) return;
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      setImageError(
+        `Unsupported file type '${file.type || "unknown"}'. Accepted: PNG, JPEG, WebP.`,
+      );
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setImageError("File too large. Maximum upload size is 10 MB.");
+      return;
+    }
+    onImageChange?.(file);
   }
 
   return (
@@ -81,6 +113,43 @@ export function ChatInput({
           />
         </div>
 
+        {/* Hidden file input for artwork attachment */}
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          data-testid="mockup-image-input"
+          onChange={handleFileChange}
+          className="hidden"
+        />
+
+        {image ? (
+          <div className="flex items-center gap-2 border-l border-zinc-700 pl-2 pr-2">
+            <span className="max-w-32 truncate text-xs text-zinc-400">{image.name}</span>
+            <button
+              type="button"
+              data-testid="mockup-image-clear"
+              onClick={() => onImageChange?.(null)}
+              disabled={disabled}
+              className="select-none px-1 text-xs text-zinc-500 transition-colors hover:bg-white hover:text-black disabled:opacity-40"
+              aria-label="Remove attached image"
+            >
+              ✕
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            data-testid="mockup-image-attach"
+            onClick={() => fileRef.current?.click()}
+            disabled={disabled}
+            className="select-none border-l border-zinc-700 px-3 text-sm text-zinc-500 transition-colors hover:bg-white hover:text-black disabled:opacity-40"
+            aria-label="Attach an image for mockup analysis"
+          >
+            [+]
+          </button>
+        )}
+
         <button
           type="button"
           onClick={onSubmit}
@@ -90,6 +159,12 @@ export function ChatInput({
           generate
         </button>
       </div>
+
+      {imageError && (
+        <p className="mt-1 pl-4 text-xs text-red-400" data-testid="mockup-image-error">
+          {imageError}
+        </p>
+      )}
     </div>
   );
 }
